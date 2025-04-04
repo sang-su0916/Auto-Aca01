@@ -1,0 +1,64 @@
+# Python 관련 파일
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 가상환경
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# 개발 환경 설정 파일
+.env
+.venv
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 구글 인증 파일
+credentials.json
+token.json
+
+# 구글 API 캐시
+googleapiclient/
+googleapis_common_protos-*/
+httplib2*/
+idna*/
+oauthlib*/
+proto*/
+protobuf*/
+pyasn1*/
+pyparsing*/
+requests*/
+rsa*/
+uritemplate*/
+urllib3*/
+
+# 데이터 파일 (필요시 주석 해제)
+# data/*.json
+
+# 로그 파일
+*.log
+
+# 운영체제 관련 파일
+.DS_Store
+Thumbs.db 
