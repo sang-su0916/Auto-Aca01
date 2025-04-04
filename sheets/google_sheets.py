@@ -1,54 +1,9 @@
-import os
-import sys
-
-# 패키지 경로 추가
-site_packages_paths = [
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'google'),
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-]
-for path in site_packages_paths:
-    if path not in sys.path:
-        sys.path.insert(0, path)
-
-try:
-    from google.oauth2.service_account import Credentials
-    from googleapiclient.discovery import build
-    from googleapiclient.errors import HttpError
-except ImportError as e:
-    print(f"Google API 모듈 임포트 오류: {e}")
-    
-    # 임시 대체 클래스
-    class Credentials:
-        @classmethod
-        def from_service_account_file(cls, filename, scopes=None):
-            return cls()
-    
-    class Service:
-        def spreadsheets(self):
-            return self
-        
-        def values(self):
-            return self
-        
-        def get(self, **kwargs):
-            return self
-        
-        def update(self, **kwargs):
-            return self
-        
-        def append(self, **kwargs):
-            return self
-        
-        def execute(self):
-            return {"values": []}
-    
-    def build(api, version, credentials=None):
-        return Service()
-    
-    class HttpError(Exception):
-        pass
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 # 나머지 임포트
+import os
 import logging
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv

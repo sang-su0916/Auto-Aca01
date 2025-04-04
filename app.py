@@ -5,7 +5,7 @@ import base64
 from datetime import datetime
 
 # Google Sheets API 사용 여부 설정
-USE_GOOGLE_SHEETS = False
+USE_GOOGLE_SHEETS = True
 
 # Google Sheets API가 사용 가능한 경우 모듈 임포트 시도
 if USE_GOOGLE_SHEETS:
@@ -13,9 +13,9 @@ if USE_GOOGLE_SHEETS:
         from sheets.google_sheets import GoogleSheetsAPI
         sheets_api = GoogleSheetsAPI()
         SHEETS_AVAILABLE = True
-    except ImportError:
+    except ImportError as e:
+        st.error(f"Google Sheets API 연결 오류: {str(e)}")
         SHEETS_AVAILABLE = False
-        st.error("Google Sheets API를 연결할 수 없습니다. 로컬 데이터를 사용합니다.")
 else:
     SHEETS_AVAILABLE = False
 
