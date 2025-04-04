@@ -5,6 +5,8 @@ from googleapiclient.errors import HttpError
 # 나머지 임포트
 import os
 import logging
+import time
+import streamlit as st
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from datetime import datetime
@@ -22,21 +24,42 @@ class GoogleSheetsAPI:
         self.SERVICE_ACCOUNT_FILE = 'credentials.json'
         self.SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID')
         
-        try:
-            self.service = self._get_google_sheets_service()
-            # Initialize headers if not already set
-            self.initialize_headers()
-            # Check if problems exist, if not, add sample problems
-            self.ensure_sample_problems()
-        except Exception as e:
-            logger.error(f"Google Sheets API 초기화 오류: {e}")
-            self.service = None
+        if not self.SPREADSHEET_ID:
+            self.SPREADSHEET_ID = "11a93BT5FR_hr61nxulETCM0xuxy2BuBNnxU6mTz2XzU"
+            logger.info(f"스프레드시트 ID가 환경 변수에 없어 기본값을 사용합니다: {self.SPREADSHEET_ID}")
+        
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                self.service = self._get_google_sheets_service()
+                # Initialize headers if not already set
+                self.initialize_headers()
+                # Check if problems exist, if not, add sample problems
+                self.ensure_sample_problems()
+                logger.info("Google Sheets API 초기화 성공")
+                break
+            except Exception as e:
+                retry_count += 1
+                logger.error(f"Google Sheets API 초기화 오류 (시도 {retry_count}/{max_retries}): {e}")
+                if retry_count < max_retries:
+                    # 재시도 전 잠시 대기
+                    time.sleep(2)
+                else:
+                    logger.error("Google Sheets API 초기화 최대 시도 횟수 초과")
+                    self.service = None
     
     def _get_google_sheets_service(self):
-        credentials = Credentials.from_service_account_file(
-            self.SERVICE_ACCOUNT_FILE, scopes=self.SCOPES)
-        service = build('sheets', 'v4', credentials=credentials)
-        return service
+        """Google Sheets API 서비스 객체 생성"""
+        try:
+            credentials = Credentials.from_service_account_file(
+                self.SERVICE_ACCOUNT_FILE, scopes=self.SCOPES)
+            service = build('sheets', 'v4', credentials=credentials)
+            return service
+        except Exception as e:
+            logger.error(f"Google Sheets 서비스 생성 오류: {e}")
+            raise
     
     def initialize_headers(self):
         """Set up headers for both sheets if they don't exist"""

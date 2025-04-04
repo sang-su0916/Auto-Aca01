@@ -1,47 +1,42 @@
 @echo off
-title 학원 자동 첨삭 시스템
-color 0A
-mode con cols=90 lines=30
+echo 학원 자동 첨삭 시스템을 실행합니다...
 
-echo ================================================================================
-echo.
-echo                            학원 자동 첨삭 시스템 시작 
-echo.
-echo ================================================================================
-echo.
-echo  프로그램을 시작합니다. 잠시만 기다려주세요...
-echo.
-
-:: Python 확인
-where py >nul 2>nul
-if %ERRORLEVEL% EQU 0 (
-    py auto_start.py
-    exit /b
+:: Python 설치 확인
+where python >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Python이 설치되어 있습니다.
+    goto :python_found
 )
 
-where python >nul 2>nul
-if %ERRORLEVEL% EQU 0 (
-    python auto_start.py
-    exit /b
+where py >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Python이 설치되어 있습니다.
+    goto :python_found
 )
 
-:: 둘 다 실패하면 직접 실행 시도
-start "" "start.bat"
+echo Python이 설치되어 있지 않습니다.
+echo https://www.python.org/downloads/ 에서 Python을 설치한 후 다시 실행해주세요.
+pause
+exit /b 1
 
-:: 3초 대기
-timeout /t 3 /nobreak >nul
+:python_found
+:: 필요한 패키지 설치
+echo 필요한 패키지를 설치합니다...
+python -m pip install streamlit pandas -q
 
-:: 만약 start.bat 실행도 실패하면
-echo.
-echo Python이 설치되어 있지 않거나 경로가 설정되지 않았습니다.
-echo 다음 순서대로 시도해 보세요:
-echo.
-echo 1. Python 설치 (https://www.python.org/downloads/)
-echo 2. 설치 시 "Add Python to PATH" 옵션 선택
-echo 3. 컴퓨터 재시작 후 다시 시도
-echo.
-echo 4. 또는 직접 실행: no_dependency_app.py를 마우스 오른쪽 버튼으로 클릭하고
-echo    "Python으로 실행" 선택
-echo.
+:: 앱 실행
+echo 학원 자동 첨삭 시스템 시작 중...
+
+:: 파일 존재 확인
+if exist "app_without_google.py" (
+    :: 브라우저 열기
+    start http://localhost:8501
+    :: 애플리케이션 실행
+    python -m streamlit run app_without_google.py
+) else (
+    echo app_without_google.py 파일을 찾을 수 없습니다.
+    pause
+    exit /b 1
+)
 
 pause 
