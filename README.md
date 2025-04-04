@@ -1,46 +1,70 @@
-# 학원 자동 첨삭 시스템
+# 📚 학원 자동 첨삭 시스템
 
-이 프로젝트는 학원에서 사용할 수 있는 자동 첨삭 시스템입니다. 학생들이 문제를 풀고 답안을 제출하면 자동으로 채점하고 피드백을 제공합니다.
+영어 문제 자동 채점 및 피드백 시스템입니다.
 
-## 💯 실행 방법
+## 🚀 실행 방법
 
-### 원클릭 실행 (가장 쉬운 방법)
-`학원 자동 첨삭 시스템.bat` 파일을 더블클릭하면 됩니다.
-- 자동으로 최적의 실행 방법을 선택하여 시작
+### 원클릭 실행
+1. `학원 자동 첨삭 시스템.bat` 파일을 더블클릭하세요.
+2. 시스템이 자동으로 실행됩니다.
 
-### 다른 실행 방법
+### 수동 실행 (개발자용)
+1. Python 환경 설정:
+```bash
+# 가상환경 생성 (최초 1회)
+python -m venv venv
 
-1. **직접 실행 (권장)** - 모든 오류 해결
-   ```
-   py no_dependency_app.py
-   ```
-   또는 배치 파일 실행:
-   ```
-   start.bat
-   ```
+# 가상환경 활성화
+venv\Scripts\activate  # Windows
+source venv/bin/activate  # Mac/Linux
 
-2. **자동 시작 스크립트 사용**:
-   ```
-   py auto_start.py
-   ```
-   이 스크립트는 여러 방법을 자동으로 시도합니다.
+# 필요 패키지 설치
+pip install -r requirements.txt
+```
 
-3. **이전 방법들** (문제가 있는 경우):
+2. 시스템 실행:
+```bash
+streamlit run app.py
+```
 
-   - 콘솔 애플리케이션 (streamlit 사용 안함)
-     ```
-     python simple_app.py
-     ```
+3. 브라우저에서 접속:
+```
+http://localhost:8501
+```
 
-   - Python 모듈 경로 직접 지정
-     ```
-     python -m streamlit.web.cli run app_fixed.py
-     ```
+## 🌐 Streamlit Cloud 배포
 
-   - 도우미 스크립트 사용
-     ```
-     python direct_run.py
-     ```
+이 프로젝트는 Streamlit Cloud를 통해 배포할 수 있습니다:
+
+1. [Streamlit Cloud](https://streamlit.io/cloud)에 가입하고 GitHub 계정을 연결합니다.
+2. "New app" 버튼을 클릭합니다.
+3. GitHub 저장소와 브랜치를 선택합니다.
+4. 메인 파일로 `app.py`를 지정합니다.
+5. 고급 설정에서 다음 비밀 환경변수를 설정합니다:
+   - `GOOGLE_SHEETS_SPREADSHEET_ID` : 연결할 Google Sheets ID
+
+6. "Deploy" 버튼을 클릭하여 배포합니다.
+
+### 중요 참고사항
+- Streamlit Cloud에 배포하려면 `credentials.json` 파일의 내용을 비밀 환경변수로 설정해야 합니다.
+- `credentials.json` 파일의 내용을 `GOOGLE_APPLICATION_CREDENTIALS_JSON`라는 이름의 비밀 환경변수에 복사하세요.
+
+## 📝 사용 가이드
+
+### 교사 계정
+- 아이디: teacher
+- 비밀번호: demo1234
+- 기능: 문제 관리, 학생 답안 확인, 채점
+
+### 학생 계정
+- 아이디: student
+- 비밀번호: demo5678
+- 기능: 문제 풀기, 성적 확인
+
+## 🛠️ 기술 스택
+- Python
+- Streamlit
+- Google Sheets API
 
 ## 📋 기능
 
