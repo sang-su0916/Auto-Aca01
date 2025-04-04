@@ -266,229 +266,227 @@ def teacher_dashboard():
             explanation = st.text_area("해설", placeholder="문제 해설을 입력하세요.")
             
             submit_button = st.form_submit_button("문제 추가")
+        
+        # 문제 추가 처리
+        if submit_button and problem_content and correct_answer:
+            new_problem = {
+                '문제ID': problem_id,
+                '과목': subject,
+                '학년': grade,
+                '문제유형': problem_type,
+                '난이도': difficulty,
+                '문제내용': problem_content,
+                '보기1': option1,
+                '보기2': option2,
+                '보기3': option3,
+                '보기4': option4,
+                '보기5': option5,
+                '정답': correct_answer,
+                '키워드': keywords,
+                '해설': explanation
+            }
             
-            if submit_button and problem_content and correct_answer:
-                new_problem = {
-                    '문제ID': problem_id,
-                    '과목': subject,
-                    '학년': grade,
-                    '문제유형': problem_type,
-                    '난이도': difficulty,
-                    '문제내용': problem_content,
-                    '보기1': option1,
-                    '보기2': option2,
-                    '보기3': option3,
-                    '보기4': option4,
-                    '보기5': option5,
-                    '정답': correct_answer,
-                    '키워드': keywords,
-                    '해설': explanation
-                }
-                
-                st.session_state.problems_df = pd.concat([st.session_state.problems_df, pd.DataFrame([new_problem])], ignore_index=True)
-                st.success("문제가 추가되었습니다.")
-                st.rerun()
-    
+            # 새 문제를 DataFrame에 추가
+            st.session_state.problems_df = pd.concat([
+                st.session_state.problems_df, 
+                pd.DataFrame([new_problem])
+            ], ignore_index=True)
+            
+            st.success(f"문제 '{problem_id}'가 성공적으로 추가되었습니다!")
+            
+    # 성적 통계 탭
     with tab2:
-        st.subheader("📊 학생 성적 통계")
+        st.subheader("📊 성적 통계")
         
-        answers_df = st.session_state.answers_df
+        # 학생 답안 데이터 로드
+        student_answers_df = st.session_state.answers_df
         
-        if not answers_df.empty:
-            st.dataframe(answers_df)
+        if not student_answers_df.empty:
+            st.dataframe(student_answers_df)
             
-            # 학생별 평균 점수
-            student_scores = answers_df.groupby(['학생ID', '이름', '학년'])['점수'].agg(['mean', 'count']).reset_index()
-            student_scores.columns = ['학생ID', '이름', '학년', '평균점수', '제출수']
-            student_scores['평균점수'] = student_scores['평균점수'].round(2)
-            
-            st.subheader("학생별 성적")
-            st.dataframe(student_scores)
-            
-            # 문제별 정답률
-            problem_stats = answers_df.groupby('문제ID').agg({
-                '점수': ['mean', 'count']
-            }).reset_index()
-            problem_stats.columns = ['문제ID', '평균점수', '응시수']
-            problem_stats['평균점수'] = problem_stats['평균점수'].round(2)
-            
-            st.subheader("문제별 정답률")
-            st.dataframe(problem_stats)
-            
+            # 간단한 통계
+            if '점수' in student_answers_df.columns:
+                avg_score = student_answers_df['점수'].mean()
+                st.metric("평균 점수", f"{avg_score:.1f}점")
+                
+                # 학생별 평균 점수
+                st.subheader("학생별 평균 점수")
+                student_avg = student_answers_df.groupby('이름')['점수'].mean().reset_index()
+                student_avg.columns = ['학생', '평균 점수']
+                st.dataframe(student_avg)
         else:
-            st.info("아직 제출된 답안이 없습니다.")
+            st.info("아직 제출된 학생 답안이 없습니다.")
 
 # 학생 포털
 def student_portal():
-    st.title(f"👋 안녕하세요, {st.session_state.user_data['name']} 학생!")
+    st.title(f"👨‍🎓 {st.session_state.user_data['name']}님의 학습 포털")
     st.write(f"학년: {st.session_state.user_data['grade']}")
     
-    tab1, tab2 = st.tabs(["문제 풀기", "나의 성적"])
+    tab1, tab2 = st.tabs(["문제 풀기", "내 성적"])
     
     with tab1:
         st.subheader("📝 문제 풀기")
         
-        # 필터 옵션
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            selected_subject = st.selectbox("과목 선택", ["전체"] + sorted(st.session_state.problems_df['과목'].unique().tolist()))
-        with col2:
-            selected_grade = st.selectbox("학년 선택", ["전체"] + sorted(st.session_state.problems_df['학년'].unique().tolist()))
-        with col3:
-            selected_difficulty = st.selectbox("난이도", ["전체", "상", "중", "하"])
+        # 문제 목록 필터링 (학년별)
+        problems_df = st.session_state.problems_df
+        student_grade = st.session_state.user_data['grade']
         
-        # 필터링
-        filtered_df = st.session_state.problems_df.copy()
-        if selected_subject != "전체":
-            filtered_df = filtered_df[filtered_df['과목'] == selected_subject]
-        if selected_grade != "전체":
-            filtered_df = filtered_df[filtered_df['학년'] == selected_grade]
-        if selected_difficulty != "전체":
-            filtered_df = filtered_df[filtered_df['난이도'] == selected_difficulty]
+        # 학년별 필터링
+        filtered_problems = problems_df[problems_df['학년'] == student_grade]
         
-        if not filtered_df.empty:
+        if filtered_problems.empty:
+            st.warning(f"{student_grade} 학년에 해당하는 문제가 없습니다. 모든 문제를 표시합니다.")
+            filtered_problems = problems_df
+        
+        if not filtered_problems.empty:
             # 문제 선택
-            problem_id = st.selectbox("문제 선택", filtered_df['문제ID'].tolist(), 
-                                     format_func=lambda x: f"{x} - {filtered_df[filtered_df['문제ID'] == x].iloc[0]['문제내용'][:30]}...")
+            problem_ids = filtered_problems['문제ID'].tolist()
+            problem_contents = filtered_problems['문제내용'].tolist()
+            problem_display = [f"{pid} - {content[:30]}..." for pid, content in zip(problem_ids, problem_contents)]
             
-            selected_problem = filtered_df[filtered_df['문제ID'] == problem_id].iloc[0]
+            selected_problem_display = st.selectbox("문제 선택", problem_display)
+            selected_problem_id = selected_problem_display.split(' - ')[0]
+            
+            # 선택한 문제 정보
+            problem = filtered_problems[filtered_problems['문제ID'] == selected_problem_id].iloc[0]
             
             # 문제 표시
-            st.markdown(f"### 문제: {selected_problem['문제내용']}")
-            st.write(f"과목: {selected_problem['과목']} | 난이도: {selected_problem['난이도']} | 유형: {selected_problem['문제유형']}")
+            st.markdown(f"### 문제: {problem['문제내용']}")
+            st.markdown(f"**난이도**: {problem['난이도']} | **유형**: {problem['문제유형']}")
             
-            # 객관식 보기 표시
-            if selected_problem['문제유형'] == '객관식':
+            # 객관식 문제인 경우 보기 표시
+            if problem['문제유형'] == '객관식':
                 options = []
                 for i in range(1, 6):
-                    option = selected_problem[f'보기{i}']
-                    if option and not pd.isna(option) and option.strip():
-                        options.append(option)
+                    option_key = f'보기{i}'
+                    if problem[option_key] and isinstance(problem[option_key], str) and problem[option_key].strip():
+                        options.append(problem[option_key])
                 
-                user_answer = st.radio("보기", options, key=f"radio_{problem_id}")
+                # 답안 선택
+                user_answer = st.radio("답안 선택", options)
             else:
-                user_answer = st.text_area("답변 작성", key=f"text_{problem_id}")
+                # 주관식 답안 입력
+                user_answer = st.text_area("답안 작성", height=100, placeholder="답변을 입력하세요...")
             
-            if st.button("제출"):
+            # 제출 버튼
+            if st.button("제출하기"):
                 if user_answer:
                     # 채점
                     score, feedback = grade_answer(
-                        selected_problem['문제유형'],
-                        selected_problem['정답'],
-                        user_answer,
-                        selected_problem['키워드']
+                        problem['문제유형'], 
+                        problem['정답'], 
+                        user_answer, 
+                        problem['키워드']
                     )
                     
-                    # 결과 저장
+                    # 결과 표시
+                    st.markdown(f"### 채점 결과")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("점수", f"{score}점")
+                    with col2:
+                        st.metric("정답", problem['정답'])
+                    
+                    st.markdown("<div class='feedback-box'>", unsafe_allow_html=True)
+                    st.markdown(f"**피드백**: {feedback}")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    if problem['해설']:
+                        st.markdown("<div class='result-card'>", unsafe_allow_html=True)
+                        st.markdown(f"**해설**: {problem['해설']}")
+                        st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    # 답안 저장
                     new_answer = {
                         '학생ID': st.session_state.user_data['username'],
                         '이름': st.session_state.user_data['name'],
                         '학년': st.session_state.user_data['grade'],
-                        '문제ID': problem_id,
+                        '문제ID': selected_problem_id,
                         '제출답안': user_answer,
                         '점수': score,
                         '피드백': feedback,
                         '제출시간': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     }
                     
-                    st.session_state.answers_df = pd.concat([st.session_state.answers_df, pd.DataFrame([new_answer])], ignore_index=True)
+                    # 새 답안을 DataFrame에 추가
+                    st.session_state.answers_df = pd.concat([
+                        st.session_state.answers_df,
+                        pd.DataFrame([new_answer])
+                    ], ignore_index=True)
                     
-                    # 결과 표시
-                    st.markdown(f"""
-                    <div class="result-card">
-                        <h3>채점 결과</h3>
-                        <p>점수: {score}/100</p>
-                        <div class="feedback-box">
-                            <p><strong>피드백:</strong> {feedback}</p>
-                        </div>
-                        <p><strong>해설:</strong> {selected_problem['해설']}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
                 else:
                     st.error("답안을 입력해주세요.")
         else:
-            st.info("선택한 조건에 맞는 문제가 없습니다.")
+            st.error("등록된 문제가 없습니다.")
     
+    # 성적 확인 탭
     with tab2:
-        st.subheader("📊 나의 성적")
+        st.subheader("📊 내 성적")
         
         # 현재 학생의 답안만 필터링
-        student_answers = st.session_state.answers_df[st.session_state.answers_df['학생ID'] == st.session_state.user_data['username']]
+        student_answers = st.session_state.answers_df[
+            st.session_state.answers_df['학생ID'] == st.session_state.user_data['username']
+        ]
         
         if not student_answers.empty:
-            st.dataframe(student_answers[['문제ID', '제출답안', '점수', '피드백', '제출시간']])
-            
+            # 평균 점수 계산
             avg_score = student_answers['점수'].mean()
-            st.metric("평균 점수", f"{avg_score:.2f}/100")
             
-            # 과목별 통계
-            if '과목' in st.session_state.problems_df.columns:
-                # 문제 데이터프레임에서 문제ID와 과목만 추출
-                problem_subjects = st.session_state.problems_df[['문제ID', '과목']]
-                
-                # 학생 답안과 병합
-                merged_df = pd.merge(student_answers, problem_subjects, on='문제ID')
-                
-                # 과목별 통계 계산
-                subject_stats = merged_df.groupby('과목').agg({
-                    '점수': ['mean', 'count']
-                }).reset_index()
-                
-                subject_stats.columns = ['과목', '평균점수', '제출수']
-                subject_stats['평균점수'] = subject_stats['평균점수'].round(2)
-                
-                st.subheader("과목별 성적")
-                st.dataframe(subject_stats)
+            # 통계 표시
+            st.metric("평균 점수", f"{avg_score:.1f}점")
+            st.metric("제출한 문제 수", f"{len(student_answers)}개")
+            
+            # 문제별 점수 표시
+            st.subheader("문제별 점수")
+            display_df = student_answers[['문제ID', '제출답안', '점수', '피드백', '제출시간']]
+            st.dataframe(display_df)
         else:
-            st.info("아직 제출한 답안이 없습니다.")
+            st.info("아직 제출한 문제가 없습니다.")
 
 # 로그인 화면
-def login_screen():
-    st.markdown("<h1 style='text-align: center;'>📚 학원 자동 첨삭 시스템</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center;'>학생들의 문제 풀이와 자동 채점을 위한 시스템입니다.</p>", unsafe_allow_html=True)
+def login():
+    st.title("🏫 학원 자동 첨삭 시스템")
+    st.write("학생들의 영어 문제 풀이를 자동으로 채점하고 피드백을 제공합니다.")
     
+    # 로그인 폼
     col1, col2, col3 = st.columns([1, 2, 1])
-    
     with col2:
-        st.markdown("<h2 style='text-align: center;'>로그인</h2>", unsafe_allow_html=True)
-        
+        st.subheader("로그인")
         username = st.text_input("아이디")
         password = st.text_input("비밀번호", type="password")
         
         if st.button("로그인"):
             if authenticate_user(username, password):
-                st.success("로그인 성공!")
                 st.rerun()
             else:
-                st.error("아이디 또는 비밀번호가 잘못되었습니다.")
+                st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
         
+        # 기본 계정 안내
         st.markdown("---")
-        st.markdown("#### 테스트용 계정")
-        st.markdown("""
-        - 교사: admin / 1234
-        - 학생1: student1 / 1234 (홍길동, 중3)
-        - 학생2: student2 / 1234 (김철수, 중2)
-        """)
+        st.markdown("### 기본 계정")
+        st.markdown("- 교사: `admin` / `1234` (관리자, 선생님)")
+        st.markdown("- 학생1: `student1` / `1234` (홍길동, 중3)")
+        st.markdown("- 학생2: `student2` / `1234` (김철수, 중2)")
 
-# 메인 앱 로직
+# 메인 앱 실행
 def main():
-    # 사이드바 - 로그인 정보 및 로그아웃 버튼
+    # 로그아웃 버튼 (인증된 경우에만)
     if st.session_state.authenticated:
-        with st.sidebar:
-            st.write(f"로그인: {st.session_state.user_data['name']} ({st.session_state.user_data['role']})")
-            if st.button("로그아웃"):
-                logout()
-                st.rerun()
+        if st.sidebar.button("로그아웃"):
+            logout()
+            st.rerun()
+        
+        st.sidebar.write(f"사용자: {st.session_state.user_data['name']}")
+        st.sidebar.write(f"역할: {'선생님' if st.session_state.user_data['role'] == 'teacher' else '학생'}")
     
     # 페이지 라우팅
     if not st.session_state.authenticated:
-        login_screen()
+        login()
     else:
         if st.session_state.user_data["role"] == "teacher":
             teacher_dashboard()
         else:
             student_portal()
 
-# 앱 실행
 if __name__ == "__main__":
     main() 
