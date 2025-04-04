@@ -4,6 +4,10 @@ import pandas as pd
 import base64
 from datetime import datetime
 
+# 환경 변수 설정 (Streamlit Cloud 배포용)
+from sheets.setup_env import setup_credentials, get_spreadsheet_id
+setup_credentials()
+
 # Google Sheets API 사용 여부 설정
 USE_GOOGLE_SHEETS = True
 
