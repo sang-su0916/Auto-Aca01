@@ -26,6 +26,8 @@ class GoogleSheetsAPI:
             self.service = self._get_google_sheets_service()
             # Initialize headers if not already set
             self.initialize_headers()
+            # Check if problems exist, if not, add sample problems
+            self.ensure_sample_problems()
         except Exception as e:
             logger.error(f"Google Sheets API 초기화 오류: {e}")
             self.service = None
@@ -52,6 +54,50 @@ class GoogleSheetsAPI:
         
         # Update student_answers sheet headers
         self.write_range('student_answers!A1:H1', student_answers_headers)
+
+    def ensure_sample_problems(self):
+        """샘플 문제 데이터가 없으면 추가합니다"""
+        # 기존 문제 확인
+        problems = self.get_problems()
+        
+        if not problems:
+            logger.info("문제 데이터가 없습니다. 샘플 문제를 추가합니다.")
+            sample_problems = [
+                ['P001', '영어', '중3', '객관식', '중', 'What is the capital of the UK?', 
+                 'London', 'Paris', 'Berlin', 'Rome', '', 'London', 'capital,UK,London', 
+                 'The capital city of the United Kingdom is London.'],
+                ['P002', '영어', '중3', '주관식', '중', 'Write a sentence using the word "beautiful".', 
+                 '', '', '', '', '', 'The flower is beautiful.', 'beautiful,sentence', 
+                 '주어와 동사를 포함한 완전한 문장이어야 합니다.'],
+                ['P003', '영어', '중2', '객관식', '하', 'Which word is a verb?', 
+                 'happy', 'book', 'run', 'fast', '', 'run', 'verb,part of speech', 
+                 '동사(verb)는 행동이나 상태를 나타내는 품사입니다. run(달리다)은 동사입니다.'],
+                ['P004', '영어', '고1', '객관식', '상', 'Choose the correct sentence.', 
+                 'I have been to Paris last year.', 'I went to Paris last year.', 'I have went to Paris last year.', 'I go to Paris last year.', '', 
+                 'I went to Paris last year.', 'grammar,past tense', '과거에 일어난 일에는 과거 시제(went)를 사용합니다.'],
+                ['P005', '영어', '고2', '주관식', '중', 'What does "procrastination" mean?', 
+                 '', '', '', '', '', 'Delaying or postponing tasks', 'vocabulary,meaning', 
+                 'Procrastination은 일이나 활동을 미루는 행동을 의미합니다.'],
+                ['P006', '영어', '중3', '객관식', '중', 'Which is NOT a fruit?', 
+                 'Apple', 'Potato', 'Orange', 'Banana', '', 'Potato', 'vocabulary,food,category', 
+                 'Potato(감자)는 채소(vegetable)입니다. 나머지는 모두 과일(fruit)입니다.'],
+                ['P007', '영어', '고1', '주관식', '상', 'Translate: "그는 어제 도서관에서 책을 읽었다."', 
+                 '', '', '', '', '', 'He read a book in the library yesterday.', 'translation,past tense', 
+                 '과거 시제를 사용한 영어 문장으로 번역해야 합니다.'],
+                ['P008', '영어', '중2', '객관식', '하', 'What time is it? (3:45)', 
+                 'It\'s quarter to four.', 'It\'s quarter past three.', 'It\'s four forty-five.', 'It\'s three forty-five.', '', 
+                 'It\'s quarter to four.', 'time,expression', '3:45는 "quarter to four"라고 표현합니다.'],
+                ['P009', '영어', '고2', '객관식', '상', 'Which sentence uses the subjunctive mood correctly?', 
+                 'If I was rich, I would buy a mansion.', 'If I were rich, I would buy a mansion.', 'If I am rich, I would buy a mansion.', 'If I will be rich, I would buy a mansion.', '', 
+                 'If I were rich, I would buy a mansion.', 'grammar,subjunctive mood', '가정법 과거에서는 "were"를 모든 인칭에 사용합니다.'],
+                ['P010', '영어', '중1', '주관식', '하', 'Count from 1 to 5 in English.', 
+                 '', '', '', '', '', 'One, two, three, four, five', 'numbers,basic vocabulary', 
+                 '영어로 1부터 5까지는 "one, two, three, four, five"입니다.']
+            ]
+            
+            # 샘플 문제 추가
+            self.write_range('problems!A2:N11', sample_problems)
+            logger.info("샘플 문제 추가 완료")
     
     def write_range(self, range_name, values):
         """Write values to specified range in Google Sheets"""
