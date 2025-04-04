@@ -1,0 +1,20 @@
+{
+    "admin": {
+        "password": "1234",
+        "name": "관리자",
+        "role": "teacher",
+        "grade": ""
+    },
+    "student1": {
+        "password": "1234",
+        "name": "홍길동",
+        "role": "student",
+        "grade": "중3"
+    },
+    "student2": {
+        "password": "1234",
+        "name": "김철수",
+        "role": "student",
+        "grade": "중2"
+    }
+}

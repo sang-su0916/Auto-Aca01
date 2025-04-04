@@ -23,42 +23,28 @@ var/
 # 가상환경
 venv/
 ENV/
-env.bak/
-venv.bak/
-
-# 개발 환경 설정 파일
 .env
-.venv
-.idea/
-.vscode/
-*.swp
-*.swo
 
-# 구글 인증 파일
+# Google 인증 파일
 credentials.json
-token.json
-
-# 구글 API 캐시
-googleapiclient/
-googleapis_common_protos-*/
-httplib2*/
-idna*/
-oauthlib*/
-proto*/
-protobuf*/
-pyasn1*/
-pyparsing*/
-requests*/
-rsa*/
-uritemplate*/
-urllib3*/
-
-# 데이터 파일 (필요시 주석 해제)
-# data/*.json
+*-token.json
+*.pickle
+.streamlit/secrets.toml
 
 # 로그 파일
 *.log
 
-# 운영체제 관련 파일
+# 기타 파일
 .DS_Store
-Thumbs.db 
+.idea/
+.vscode/
+__pycache__/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Streamlit 폴더
+.streamlit/watchdog.json
+
+# Google API 캐시
+.google-api-python-client-* 
