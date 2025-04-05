@@ -574,6 +574,10 @@ def student_portal():
     if "submitted_answers" not in st.session_state:
         st.session_state.submitted_answers = {}
     
+    # 임시 답안 저장을 위한 상태 초기화
+    if "temp_answers" not in st.session_state:
+        st.session_state.temp_answers = {}
+    
     # 탭 설정: 문제 풀기, 내 성적
     tab1, tab2 = st.tabs(["📝 문제 풀기", "📊 내 성적"])
     
@@ -615,6 +619,9 @@ def student_portal():
             
             # 학생이 이미 제출한 문제 ID 세트 생성
             submitted_problem_ids = set(student_answers['문제ID'].values)
+            
+            # 모든 문제가 제출되었는지 확인
+            all_submitted = all(problem_id in submitted_problem_ids for problem_id in filtered_problems['문제ID'].values)
             
             # 문제 목록
             for i, (_, problem) in enumerate(filtered_problems.iterrows()):
@@ -683,49 +690,15 @@ def student_portal():
                                 key=f"answer_{problem_id}",
                                 index=None  # 기본 선택 없음
                             )
-                            
-                            col1, col2, col3 = st.columns([6, 4, 2])
-                            with col3:
-                                if st.button("제출", key=f"submit_{problem_id}"):
-                                    if answer:  # 답을 선택했는지 확인
-                                        # 채점
-                                        score, feedback = grade_answer(
-                                            problem['문제유형'], 
-                                            problem['정답'], 
-                                            answer,
-                                            problem.get('키워드', '')
-                                        )
-                                        
-                                        # 답안 기록
-                                        _record_answer(
-                                            problem_id,
-                                            answer,
-                                            score,
-                                            feedback
-                                        )
-                                        
-                                        # 채점 결과 표시
-                                        if score == 100:
-                                            st.markdown(f"""
-                                            <div class='correct-answer'>
-                                                <strong>✅ 정답입니다!</strong><br>
-                                                정답: {problem['정답']}<br>
-                                                해설: {problem['해설']}
-                                            </div>
-                                            """, unsafe_allow_html=True)
-                                        else:
-                                            st.markdown(f"""
-                                            <div class='wrong-answer'>
-                                                <strong>❌ {feedback}</strong><br>
-                                                정답: {problem['정답']}<br>
-                                                해설: {problem['해설']}
-                                            </div>
-                                            """, unsafe_allow_html=True)
-                                        
-                                        # 페이지 새로고침하여 제출 상태 업데이트
-                                        st.rerun()
-                                    else:
-                                        st.error("답을 선택해주세요.")
+                            # 임시 저장
+                            if answer:
+                                st.session_state.temp_answers[problem_id] = {
+                                    "answer": answer,
+                                    "problem_type": problem['문제유형'],
+                                    "correct_answer": problem['정답'],
+                                    "keywords": problem.get('키워드', ''),
+                                    "explanation": problem['해설']
+                                }
                     
                     # 주관식 문제
                     else:
@@ -759,51 +732,57 @@ def student_portal():
                             # 아직 제출하지 않은 문제는 일반적으로 표시
                             answer = st.text_area("답을 입력하세요:", key=f"answer_{problem_id}")
                             
-                            col1, col2, col3 = st.columns([6, 4, 2])
-                            with col3:
-                                if st.button("제출", key=f"submit_{problem_id}"):
-                                    if answer.strip():  # 답을 입력했는지 확인
-                                        # 채점
-                                        score, feedback = grade_answer(
-                                            problem['문제유형'], 
-                                            problem['정답'], 
-                                            answer,
-                                            problem.get('키워드', '')
-                                        )
-                                        
-                                        # 답안 기록
-                                        _record_answer(
-                                            problem_id,
-                                            answer,
-                                            score,
-                                            feedback
-                                        )
-                                        
-                                        # 채점 결과 표시
-                                        if score == 100:
-                                            st.markdown(f"""
-                                            <div class='correct-answer'>
-                                                <strong>✅ 정답입니다!</strong><br>
-                                                정답: {problem['정답']}<br>
-                                                해설: {problem['해설']}
-                                            </div>
-                                            """, unsafe_allow_html=True)
-                                        else:
-                                            st.markdown(f"""
-                                            <div class='wrong-answer'>
-                                                <strong>❌ {feedback}</strong><br>
-                                                정답: {problem['정답']}<br>
-                                                해설: {problem['해설']}
-                                            </div>
-                                            """, unsafe_allow_html=True)
-                                        
-                                        # 페이지 새로고침하여 제출 상태 업데이트
-                                        st.rerun()
-                                    else:
-                                        st.error("답을 입력해주세요.")
+                            # 임시 저장
+                            if answer.strip():
+                                st.session_state.temp_answers[problem_id] = {
+                                    "answer": answer,
+                                    "problem_type": problem['문제유형'],
+                                    "correct_answer": problem['정답'],
+                                    "keywords": problem.get('키워드', ''),
+                                    "explanation": problem['해설']
+                                }
                     
                     st.markdown("</div>", unsafe_allow_html=True)
-        
+            
+            # 제출 버튼 (마지막 문제 이후에만 표시)
+            if not all_submitted:
+                st.markdown("<div style='text-align: center; margin-top: 30px;'>", unsafe_allow_html=True)
+                if st.button("시험 제출", key="submit_all_problems", use_container_width=True):
+                    if st.session_state.temp_answers:
+                        submitted_count = 0
+                        
+                        for problem_id, problem_data in st.session_state.temp_answers.items():
+                            if problem_id not in submitted_problem_ids:
+                                answer = problem_data["answer"]
+                                problem_type = problem_data["problem_type"]
+                                correct_answer = problem_data["correct_answer"]
+                                keywords = problem_data["keywords"]
+                                
+                                # 채점
+                                score, feedback = grade_answer(
+                                    problem_type, 
+                                    correct_answer, 
+                                    answer,
+                                    keywords
+                                )
+                                
+                                # 답안 기록
+                                _record_answer(
+                                    problem_id,
+                                    answer,
+                                    score,
+                                    feedback
+                                )
+                                submitted_count += 1
+                        
+                        st.success(f"{submitted_count}개의 답안이 성공적으로 제출되었습니다!")
+                        st.rerun()
+                    else:
+                        st.error("적어도 하나의 문제에 대한 답안을 입력해주세요.")
+                st.markdown("</div>", unsafe_allow_html=True)
+            else:
+                st.success("모든 문제를 풀었습니다! 내 성적 탭에서 결과를 확인하세요.")
+                
         st.markdown("</div>", unsafe_allow_html=True)
     
     with tab2: # 내 성적 탭
