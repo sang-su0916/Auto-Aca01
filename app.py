@@ -20,12 +20,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Google Sheets 연결 상태 표시
-if google_sheets_available:
-    st.success("Google Sheets API에 연결되었습니다.")
-else:
-    st.warning("Google Sheets API 모듈을 불러올 수 없습니다. 로컬 모드로 실행됩니다.")
-
 # 세션 상태 초기화
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
@@ -41,6 +35,14 @@ if 'sidebar_state' not in st.session_state:
     st.session_state.sidebar_state = "collapsed"
 if 'mode' not in st.session_state:
     st.session_state.mode = "local" if not google_sheets_available else "google_sheets"
+
+# 로그인 화면에서 사이드바 숨김
+if not st.session_state.authenticated:
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {display: none;}
+    </style>
+    """, unsafe_allow_html=True)
 
 # 사용자 데이터베이스 초기화
 def initialize_user_db():
@@ -789,92 +791,154 @@ def student_portal():
 
 # 로그인 화면
 def login():
-    st.title("학원 자동 첨삭 시스템")
-    st.subheader("학생들의 영어 문제 풀이를 자동으로 채점하고 피드백을 제공합니다.")
+    st.title("🏫 학원 자동 첨삭 시스템")
+    st.write("학생들의 영어 문제 풀이를 자동으로 채점하고 피드백을 제공합니다.")
+    
+    # Google Sheets 연결 상태 확인
+    if google_sheets_available:
+        try:
+            sheets_api = GoogleSheetsAPI()
+            if sheets_api.service:
+                st.success("Google Sheets에 연결되었습니다. 기본 문제를 사용합니다.")
+            else:
+                st.warning("Google Sheets에서 문제를 가져오지 못했습니다. 기본 문제를 사용합니다.")
+        except Exception as e:
+            st.warning(f"Google Sheets 연결 오류: {str(e)}. 기본 문제를 사용합니다.")
+    else:
+        st.warning("Google Sheets API 모듈을 불러올 수 없습니다. 로컬 모드로 실행됩니다.")
     
     # 로그인 폼
-    with st.form("로그인"):
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.subheader("로그인")
         username = st.text_input("아이디")
         password = st.text_input("비밀번호", type="password")
-        submit = st.form_submit_button("로그인")
         
-        if submit:
+        if st.button("로그인"):
             if authenticate_user(username, password):
-                st.success("로그인 성공!")
                 st.rerun()
             else:
-                st.error("아이디 또는 비밀번호가 올바르지 않습니다.")
-    
-    # 기본 계정 정보
-    st.markdown("### 기본 계정")
-    st.markdown("- 교사: `admin` / `1234` (관리자, 선생님)")
-    st.markdown("- 학생1: `student1` / `1234` (홍길동, 중3)")
-    st.markdown("- 학생2: `student2` / `1234` (김철수, 중2)")
-    st.markdown("- 학생3: `student3` / `1234` (박영희, 중1)")
-
-# 메인 실행
-def main():
-    # CSS 스타일 추가
-    st.markdown("""
-    <style>
-    .stApp {
-        max-width: 1200px;
-        margin: 0 auto;
-    }
-    [data-testid="stSidebar"] {
-        background-color: #f8f9fa;
-    }
-    .css-18e3th9 {
-        padding-top: 1rem;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # 로그인 확인
-    if not st.session_state.authenticated:
-        # 로그인 화면에서는 사이드바 완전히 숨김
-        st.markdown("""
-        <style>
-        [data-testid="stSidebar"] {display: none;}
-        </style>
-        """, unsafe_allow_html=True)
+                st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
         
+        # 기본 계정 안내
+        st.markdown("---")
+        st.markdown("### 기본 계정")
+        st.markdown("- 교사: `admin` / `1234` (관리자, 선생님)")
+        st.markdown("- 학생1: `student1` / `1234` (홍길동, 중3)")
+        st.markdown("- 학생2: `student2` / `1234` (김철수, 중2)")
+        st.markdown("- 학생3: `student3` / `1234` (박영희, 중1)")
+
+# 메인 앱
+def main():
+    global google_sheets_available
+    
+    # 구글 시트 연결 시도
+    sheets_api = None
+    if google_sheets_available:
+        try:
+            sheets_api = GoogleSheetsAPI()
+            if not sheets_api.service:
+                google_sheets_available = False
+                st.warning("Google Sheets 연결에 실패했습니다. 로컬 모드로 실행됩니다.")
+        except Exception as e:
+            google_sheets_available = False
+            st.warning(f"Google Sheets 연결 오류: {str(e)}. 로컬 모드로 실행됩니다.")
+    
+    # 로딩 및 초기화
+    users = initialize_user_db()
+    
+    # 첫 실행 시 문제 및 답변 로드
+    if st.session_state.problems is None:
+        if google_sheets_available and sheets_api and sheets_api.service:
+            try:
+                # Google Sheets에서 문제 로드
+                problems_data = sheets_api.get_problems()
+                columns = ['문제ID', '과목', '학년', '문제유형', '난이도', '문제내용', 
+                          '보기1', '보기2', '보기3', '보기4', '보기5', '정답', '키워드', '해설']
+                
+                problems_list = []
+                for row in problems_data:
+                    if len(row) < len(columns):
+                        # 부족한 칼럼은 빈 문자열로 채움
+                        row.extend([''] * (len(columns) - len(row)))
+                    problem_dict = {columns[i]: row[i] for i in range(len(columns))}
+                    problems_list.append(problem_dict)
+                
+                st.session_state.problems = pd.DataFrame(problems_list)
+                st.success("Google Sheets에서 문제를 성공적으로 로드했습니다.")
+            except Exception as e:
+                st.error(f"Google Sheets에서 문제 로드 실패: {str(e)}")
+                st.session_state.problems = initialize_sample_questions()
+        else:
+            # 로컬 CSV에서 문제 로드
+            st.session_state.problems = initialize_sample_questions()
+    
+    if st.session_state.student_answers is None:
+        if google_sheets_available and sheets_api and sheets_api.service:
+            try:
+                # Google Sheets에서 학생 답변 로드
+                # TODO: 구현
+                st.session_state.student_answers = initialize_student_answers()
+            except Exception as e:
+                st.error(f"Google Sheets에서 학생 답변 로드 실패: {str(e)}")
+                st.session_state.student_answers = initialize_student_answers()
+        else:
+            # 로컬 CSV에서 학생 답변 로드
+            st.session_state.student_answers = initialize_student_answers()
+    
+    # 사이드바 설정 - 로그인된 경우에만 표시
+    if st.session_state.authenticated:
+        with st.sidebar:
+            st.image("https://www.gstatic.com/education/classroom/themes/img_read.jpg", width=300)
+            st.title("학원 자동 첨삭 시스템")
+            
+            # 로그아웃 버튼
+            st.write(f"사용자: {st.session_state.user_data['name']}")
+            st.write(f"역할: {'선생님' if st.session_state.user_data['role'] == 'teacher' else '학생'}")
+            
+            if st.button("로그아웃"):
+                logout()
+                st.rerun()
+            
+            # 메뉴
+            st.header("메뉴")
+            if st.session_state.user_data["role"] == "teacher":
+                if st.sidebar.button("문제 관리"):
+                    st.session_state.page = "teacher"
+                    st.rerun()
+            else:
+                if st.sidebar.button("문제 풀기"):
+                    st.session_state.page = "student"
+                    st.session_state.current_problem_index = 0
+                    st.rerun()
+            
+            # Google Sheets 정보
+            st.markdown("---")
+            if google_sheets_available and sheets_api and sheets_api.service:
+                st.caption(f"Google Sheets ID: {sheets_api.SPREADSHEET_ID[:10]}...")
+                st.caption(f"[스프레드시트 열기](https://docs.google.com/spreadsheets/d/{sheets_api.SPREADSHEET_ID})")
+            else:
+                st.caption("로컬 모드로 실행 중 (Google Sheets 연결 없음)")
+            st.caption("© 2025 학원 자동 첨삭 시스템")
+    
+    # 페이지 라우팅
+    if not st.session_state.authenticated:
         login()
     else:
-        # 로그인 후에도 사이드바 완전히 숨김
-        st.markdown("""
-        <style>
-        [data-testid="stSidebar"] {display: none;}
-        header {visibility: hidden;}
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # 상단 네비게이션 바 생성
-        col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-        with col1:
-            st.markdown(f"## 학원 자동 첨삭 시스템")
-        with col2:
-            st.write(f"사용자: {st.session_state.user_data['name']}")
-        with col3:
-            st.write(f"역할: {'선생님' if st.session_state.user_data['role'] == 'teacher' else '학생'}")
-        with col4:
-            if st.button("로그아웃", key="logout_top"):
-                logout()
-        
-        st.markdown("---")
-        
-        # 데이터 로드
-        if st.session_state.problems is None:
-            st.session_state.problems = initialize_sample_questions()
-        
-        if st.session_state.student_answers is None:
-            st.session_state.student_answers = initialize_student_answers()
-        
-        # 페이지 내용 표시
-        if st.session_state.user_data["role"] == "teacher":
+        # 페이지에 따라 다른 기능 표시
+        if 'page' not in st.session_state:
+            st.session_state.page = "home"
+            
+        if st.session_state.page == "teacher":
             teacher_dashboard()
-        else:
+        elif st.session_state.page == "student":
             student_portal()
+        else:
+            # 홈 화면
+            if st.session_state.user_data["role"] == "teacher":
+                teacher_dashboard()
+            else:
+                student_portal()
 
 if __name__ == "__main__":
     # 사용자 데이터베이스 초기화
