@@ -126,11 +126,14 @@ def get_option_by_grade(grade, i, option_num):
                   ['6:40', '7:50', '9:25', '11:10', '']]
         return options[i % 5][option_num-1]
     elif grade == "중3":
-        options = [['Run', 'Book', 'Smart', 'Red', ''],
-                  ['Jump', 'Table', 'Beautiful', 'Blue', ''],
-                  ['Swim', 'Pen', 'Happy', 'Green', ''],
-                  ['Dance', 'Chair', 'Sad', 'Yellow', ''],
-                  ['Read', 'Desk', 'Angry', 'Black', '']]
+        # 동사 문제에 대한 보기 개선 - 각 세트는 하나의 동사와 여러 개의 명사, 형용사 등으로 구성
+        options = [
+            ['Run', 'Book', 'School', 'Red', ''],
+            ['Write', 'Table', 'Beautiful', 'Computer', ''],
+            ['Speak', 'Pen', 'Happy', 'Chair', ''],
+            ['Play', 'House', 'Sad', 'Window', ''],
+            ['Study', 'Phone', 'Angry', 'Notebook', '']
+        ]
         return options[i % 5][option_num-1]
     return ""
 
@@ -140,7 +143,8 @@ def get_answer_by_grade(grade, i):
     elif grade == "중2":
         return ['2:30', '4:45', '7:20', '10:55', '6:40'][i % 5]
     elif grade == "중3":
-        return ['Run', 'Jump', 'Swim', 'Dance', 'Read'][i % 5]
+        # 동사 문제의 정답은 항상 첫 번째 옵션 (동사)
+        return ['Run', 'Write', 'Speak', 'Play', 'Study'][i % 5]
     return "Answer"
 
 def get_keywords_by_grade(grade):
