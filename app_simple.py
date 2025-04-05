@@ -4,6 +4,14 @@ import os
 import json
 from datetime import datetime
 
+# 페이지 설정 - 반드시 첫 번째 Streamlit 명령어여야 함
+st.set_page_config(
+    page_title="학원 자동 첨삭 시스템",
+    page_icon="📚",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # Google Sheets 연동 관련 import 시도
 try:
     from sheets.setup_sheets import fetch_problems_from_sheet, SPREADSHEET_ID
@@ -13,14 +21,6 @@ except ImportError as e:
     st.error(f"Google Sheets 연동 모듈을 가져오는 중 오류 발생: {str(e)}")
     # 기본 스프레드시트 ID 설정
     SPREADSHEET_ID = "1ke4Sv6TjOBua-hm-PLayMFHubA1mcJCrg0VVTJzf2d0"
-
-# 페이지 설정
-st.set_page_config(
-    page_title="학원 자동 첨삭 시스템",
-    page_icon="📚",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # 사용자 계정 정보
 def initialize_user_db():
