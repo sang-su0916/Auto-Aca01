@@ -12,15 +12,24 @@ st.set_page_config(
     initial_sidebar_state="collapsed"  # 사이드바를 기본적으로 숨김
 )
 
-# Google Sheets 연동 관련 import 시도
+# 구글 시트 모듈 가져오기
 try:
-    from sheets.setup_sheets import fetch_problems_from_sheet, SPREADSHEET_ID
-    SHEETS_AVAILABLE = True
-except ImportError as e:
+    from sheets.setup_sheets import SHEETS_AVAILABLE, SPREADSHEET_ID, fetch_problems_from_sheet
+except ImportError:
     SHEETS_AVAILABLE = False
-    st.error(f"Google Sheets 연동 모듈을 가져오는 중 오류 발생: {str(e)}")
-    # 기본 스프레드시트 ID 설정
-    SPREADSHEET_ID = "1ke4Sv6TjOBua-hm-PLayMFHubA1mcJCrg0VVTJzf2d0"
+    SPREADSHEET_ID = "기본 스프레드시트 ID"
+    # 구글 시트 모듈을 가져올 수 없는 경우 대체 함수 정의
+    def fetch_problems_from_sheet():
+        return pd.DataFrame()
+
+# 문제 유형 결정 함수
+def get_problem_type(grade, i):
+    # 모든 문제를 기본적으로 객관식으로 설정
+    # 특별히 주관식이 필요한 문제만 따로 지정
+    if grade == "중3" and i % 20 == 19:  # 마지막 문제는 주관식으로
+        return "주관식"
+    else:
+        return "객관식"
 
 # 사용자 계정 정보
 def initialize_user_db():
@@ -995,15 +1004,6 @@ def main():
             teacher_dashboard()
         else:
             student_portal()
-
-# 문제 유형 결정 함수 추가
-def get_problem_type(grade, i):
-    # 모든 문제를 기본적으로 객관식으로 설정
-    # 특별히 주관식이 필요한 문제만 따로 지정
-    if grade == "중3" and i % 20 == 19:  # 마지막 문제는 주관식으로
-        return "주관식"
-    else:
-        return "객관식"
 
 if __name__ == "__main__":
     main()

@@ -315,26 +315,69 @@ class GoogleSheetsSetup:
         self.update_values('problems!A2:N46', all_sample_problems)
         logger.info(f"총 {len(all_sample_problems)}개의 샘플 문제가 추가되었습니다.")
 
+    def ensure_sheets_exist(self):
+        """스프레드시트에 필요한 시트(problems, student_answers)가 있는지 확인하고 없으면 생성합니다."""
+        if not self.service:
+            logger.error("Google Sheets API 서비스가 초기화되지 않았습니다.")
+            return False
+            
+        try:
+            # 현재 스프레드시트 정보 가져오기
+            spreadsheet = self.service.spreadsheets().get(spreadsheetId=self.SPREADSHEET_ID).execute()
+            existing_sheets = [sheet['properties']['title'] for sheet in spreadsheet.get('sheets', [])]
+            
+            # 필요한 시트 이름
+            required_sheets = ['problems', 'student_answers']
+            requests = []
+            
+            # 필요한 시트가 없으면 생성 요청 추가
+            for sheet_name in required_sheets:
+                if sheet_name not in existing_sheets:
+                    logger.info(f"'{sheet_name}' 시트가 없습니다. 생성합니다.")
+                    requests.append({
+                        'addSheet': {
+                            'properties': {
+                                'title': sheet_name
+                            }
+                        }
+                    })
+            
+            # 요청이 있으면 실행
+            if requests:
+                body = {'requests': requests}
+                self.service.spreadsheets().batchUpdate(
+                    spreadsheetId=self.SPREADSHEET_ID,
+                    body=body
+                ).execute()
+                logger.info("필요한 시트를 생성했습니다.")
+                
+                # 시트 생성 후 헤더 설정
+                self.initialize_sheets()
+            else:
+                logger.info("모든 필요한 시트가 이미 존재합니다.")
+                
+            return True
+        except Exception as e:
+            logger.error(f"시트 확인/생성 중 오류 발생: {str(e)}")
+            return False
+
 # 스프레드시트 데이터 가져오기 함수
 def fetch_problems_from_sheet():
-    """
-    Google Sheets에서 문제 데이터를 가져와 DataFrame으로 반환합니다.
-    오류 발생 시 빈 DataFrame을 반환합니다.
-    """
+    """구글 시트에서 문제 데이터를 가져와 DataFrame으로 반환합니다."""
     try:
-        # GoogleSheetsAPI 인스턴스 생성
-        api = GoogleSheetsAPI()
-        # 문제 데이터 가져오기
-        problems = api.get_problems()
+        sheets_setup = GoogleSheetsSetup()
+        # 시트 존재 여부 확인 및 필요시 초기화
+        sheets_setup.ensure_sheets_exist()
         
-        if problems:
-            # 리스트를 DataFrame으로 변환
-            df = pd.DataFrame(problems)
-            logger.info(f"Google Sheets에서 {len(df)}개의 문제를 성공적으로 가져왔습니다.")
-            return df
-        else:
-            logger.warning("Google Sheets에서 가져온 문제가 없습니다.")
+        # 문제 데이터 가져오기
+        problems_data = sheets_setup.get_problems()
+        if not problems_data:
+            logger.warning("Google Sheets에서 가져온 문제 데이터가 없습니다.")
             return pd.DataFrame()
+        
+        # 데이터프레임으로 변환
+        problems_df = pd.DataFrame(problems_data)
+        return problems_df
     except Exception as e:
         logger.error(f"Google Sheets에서 문제를 가져오는 중 오류 발생: {str(e)}")
         return pd.DataFrame()
