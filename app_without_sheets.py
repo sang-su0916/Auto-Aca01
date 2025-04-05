@@ -6,6 +6,7 @@ from datetime import datetime
 import time
 import json
 import io
+import csv
 
 # 페이지 설정 - 사이드바 기본적으로 숨김
 st.set_page_config(
@@ -14,6 +15,14 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# 로그인 화면에서 사이드바 숨김
+if 'authenticated' not in st.session_state or not st.session_state.authenticated:
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {display: none;}
+    </style>
+    """, unsafe_allow_html=True)
 
 # 사용자 계정 정보
 def initialize_user_db():
@@ -44,6 +53,12 @@ def initialize_user_db():
             "name": "김철수",
             "role": "student",
             "grade": "중2"
+        },
+        "student3": {
+            "password": "1234",
+            "name": "박영희",
+            "role": "student",
+            "grade": "중1"
         }
     }
     return default_users
@@ -542,6 +557,7 @@ def login_screen():
         **학생 계정**
         - 아이디: student1 (홍길동, 중3)
         - 아이디: student2 (김철수, 중2)
+        - 아이디: student3 (박영희, 중1)
         - 비밀번호: 1234
         """)
         st.markdown("</div>", unsafe_allow_html=True)
