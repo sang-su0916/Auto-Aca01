@@ -467,8 +467,8 @@ def render_navbar():
         
         <script>
             function streamlitClick(action) {
-                const data = {"action": action};
-                window.parent.postMessage({"type": "streamlit:setComponentValue", "value": data}, "*");
+                const data = {{"action": action}};
+                window.parent.postMessage({{"type": "streamlit:setComponentValue", "value": data}}, "*");
             }
         </script>
         """.format(
@@ -482,7 +482,7 @@ def render_navbar():
         # JavaScript 이벤트 처리
         nav_action = st.text_input("", "", key="nav_action", label_visibility="collapsed")
         if nav_action:
-            action_data = eval(nav_action)
+            action_data = json.loads(nav_action)
             if action_data.get('action') == 'logout':
                 logout()
                 st.rerun()
