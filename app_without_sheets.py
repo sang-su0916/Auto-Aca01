@@ -5,6 +5,7 @@ import base64
 from datetime import datetime
 import time
 import json
+import io
 
 # 페이지 설정 - 사이드바 기본적으로 숨김
 st.set_page_config(

@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="학원 자동 첨삭 시스템",
     page_icon="📚",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # Google 스프레드시트 ID 설정 - 참고용으로만 표시
@@ -49,66 +49,170 @@ def initialize_user_db():
 # 사용자 데이터베이스 로드
 users_db = initialize_user_db()
 
-# 기본 데이터 초기화
+# 구글 시트 API 연결 함수
+def get_problems_from_google_sheets():
+    try:
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+        
+        # 인증 파일 확인
+        if not os.path.exists('credentials.json'):
+            return None
+        
+        # 서비스 계정 인증
+        SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+        credentials = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+        service = build('sheets', 'v4', credentials=credentials)
+        
+        # 시트에서 문제 데이터 가져오기
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range='problems!A2:N'
+        ).execute()
+        
+        values = result.get('values', [])
+        if not values:
+            return None
+            
+        # 데이터프레임 생성
+        columns = ['문제ID', '과목', '학년', '문제유형', '난이도', '문제내용', 
+                  '보기1', '보기2', '보기3', '보기4', '보기5', '정답', '키워드', '해설']
+        
+        data = []
+        for row in values:
+            # 모든 열을 확보
+            row_extended = row + [''] * (len(columns) - len(row))
+            row_dict = {columns[i]: row_extended[i] for i in range(len(columns))}
+            data.append(row_dict)
+            
+        return pd.DataFrame(data)
+        
+    except Exception as e:
+        print(f"구글 시트에서 문제 가져오기 오류: {str(e)}")
+        return None
+
+# 기본 데이터 초기화 수정
 def initialize_sample_questions():
-    # 영어 문제 샘플 - 각 학년별 20문제씩 추가
+    # 먼저 구글 시트에서 문제 가져오기 시도
+    google_sheets_data = get_problems_from_google_sheets()
+    if google_sheets_data is not None and not google_sheets_data.empty:
+        return google_sheets_data
+    
+    # 구글 시트에서 가져오기 실패시 기본 데이터 사용
     questions = []
     
-    # 중1 문제
-    for i in range(1, 21):
+    # 중1 영어 문제 - 과일
+    for i in range(1, 8):
         questions.append({
             '문제ID': f'P{i:03d}',
             '과목': '영어',
             '학년': '중1',
-            '문제유형': '객관식' if i % 3 != 0 else '주관식',
-            '난이도': '중' if i % 3 == 0 else ('상' if i % 3 == 1 else '하'),
-            '문제내용': f'중1 영어 문제 {i}: Which of the following is a fruit?',
-            '보기1': 'Apple' if i % 5 == 0 else 'Car',
-            '보기2': 'Banana' if i % 5 == 1 else 'House',
-            '보기3': 'Orange' if i % 5 == 2 else 'Book',
-            '보기4': 'Strawberry' if i % 5 == 3 else 'Pen',
-            '보기5': 'Grape' if i % 5 == 4 else '',
-            '정답': ['Apple', 'Banana', 'Orange', 'Strawberry', 'Grape'][i % 5],
-            '키워드': 'fruit,food',
-            '해설': f'The correct answer is {["Apple", "Banana", "Orange", "Strawberry", "Grape"][i % 5]} because it is a fruit.'
+            '문제유형': '객관식',
+            '난이도': ['상', '중', '하'][i % 3],
+            '문제내용': f'다음 중 과일이 아닌 것은?',
+            '보기1': '사과 (Apple)',
+            '보기2': '바나나 (Banana)',
+            '보기3': '당근 (Carrot)',
+            '보기4': '오렌지 (Orange)',
+            '보기5': '',
+            '정답': '당근 (Carrot)',
+            '키워드': 'fruit,vegetable',
+            '해설': '당근(Carrot)은 채소(vegetable)입니다. 나머지는 모두 과일(fruit)입니다.'
         })
     
-    # 중2 문제
-    for i in range(21, 41):
+    # 중1 영어 문제 - 색상
+    for i in range(8, 15):
+        questions.append({
+            '문제ID': f'P{i:03d}',
+            '과목': '영어',
+            '학년': '중1',
+            '문제유형': '객관식',
+            '난이도': ['상', '중', '하'][i % 3],
+            '문제내용': f'다음 중 빨간색을 의미하는 영어 단어는?',
+            '보기1': 'Blue',
+            '보기2': 'Red',
+            '보기3': 'Green',
+            '보기4': 'Yellow',
+            '보기5': '',
+            '정답': 'Red',
+            '키워드': 'color,red',
+            '해설': 'Red는 빨간색, Blue는 파란색, Green은 녹색, Yellow는 노란색입니다.'
+        })
+    
+    # 중2 영어 문제 - 시간
+    for i in range(15, 22):
         questions.append({
             '문제ID': f'P{i:03d}',
             '과목': '영어',
             '학년': '중2',
-            '문제유형': '객관식' if i % 3 != 0 else '주관식',
-            '난이도': '중' if i % 3 == 0 else ('상' if i % 3 == 1 else '하'),
-            '문제내용': f'중2 영어 문제 {i-20}: What time is it?',
-            '보기1': '2:30' if i % 5 == 0 else '3:15',
-            '보기2': '4:45' if i % 5 == 1 else '1:00',
-            '보기3': '7:20' if i % 5 == 2 else '9:10',
-            '보기4': '10:55' if i % 5 == 3 else '12:05',
-            '보기5': '6:40' if i % 5 == 4 else '',
-            '정답': ['2:30', '4:45', '7:20', '10:55', '6:40'][i % 5],
-            '키워드': 'time,clock,hour',
-            '해설': f'The correct time is {["2:30", "4:45", "7:20", "10:55", "6:40"][i % 5]}.'
+            '문제유형': '주관식',
+            '난이도': ['중', '하', '상'][i % 3],
+            '문제내용': f'영어로 "지금 3시 30분이다"를 올바르게 표현한 것은?',
+            '보기1': '',
+            '보기2': '',
+            '보기3': '',
+            '보기4': '',
+            '보기5': '',
+            '정답': 'It is three thirty.',
+            '키워드': 'time,clock,three,thirty',
+            '해설': '시간 표현에서는 "It is + 시간"의 형태로 표현합니다. 3:30은 "three thirty"라고 표현합니다.'
         })
     
-    # 중3 문제
-    for i in range(41, 61):
+    # 중2 영어 문제 - 방향
+    for i in range(22, 29):
+        questions.append({
+            '문제ID': f'P{i:03d}',
+            '과목': '영어',
+            '학년': '중2',
+            '문제유형': '객관식',
+            '난이도': ['중', '상', '하'][i % 3],
+            '문제내용': f'다음 중 "남쪽"을 의미하는 영어 단어는?',
+            '보기1': 'North',
+            '보기2': 'East',
+            '보기3': 'West',
+            '보기4': 'South',
+            '보기5': '',
+            '정답': 'South',
+            '키워드': 'direction,south',
+            '해설': 'South는 남쪽, North는 북쪽, East는 동쪽, West는 서쪽을 의미합니다.'
+        })
+    
+    # 중3 영어 문제 - 동사
+    for i in range(29, 36):
         questions.append({
             '문제ID': f'P{i:03d}',
             '과목': '영어',
             '학년': '중3',
-            '문제유형': '객관식' if i % 3 != 0 else '주관식',
-            '난이도': '중' if i % 3 == 0 else ('상' if i % 3 == 1 else '하'),
-            '문제내용': f'중3 영어 문제 {i-40}: Which word is a verb?',
-            '보기1': 'Run' if i % 5 == 0 else 'Book',
-            '보기2': 'Jump' if i % 5 == 1 else 'Table',
-            '보기3': 'Swim' if i % 5 == 2 else 'Pen',
-            '보기4': 'Dance' if i % 5 == 3 else 'Chair',
-            '보기5': 'Read' if i % 5 == 4 else '',
-            '정답': ['Run', 'Jump', 'Swim', 'Dance', 'Read'][i % 5],
-            '키워드': 'verb,action',
-            '해설': f'{["Run", "Jump", "Swim", "Dance", "Read"][i % 5]} is a verb because it describes an action.'
+            '문제유형': '객관식',
+            '난이도': ['상', '중', '하'][i % 3],
+            '문제내용': f'다음 중 동사(verb)가 아닌 것은?',
+            '보기1': 'Run',
+            '보기2': 'Book',
+            '보기3': 'Jump',
+            '보기4': 'Swim',
+            '보기5': '',
+            '정답': 'Book',
+            '키워드': 'verb,noun',
+            '해설': 'Book은 명사(책)입니다. Run(달리다), Jump(뛰다), Swim(수영하다)은 모두 동사입니다.'
+        })
+    
+    # 중3 영어 문제 - 문법
+    for i in range(36, 43):
+        questions.append({
+            '문제ID': f'P{i:03d}',
+            '과목': '영어',
+            '학년': '중3',
+            '문제유형': '주관식',
+            '난이도': ['하', '상', '중'][i % 3],
+            '문제내용': f'다음 문장의 빈칸에 알맞은 관사를 넣으세요: "I saw ___ elephant at the zoo."',
+            '보기1': '',
+            '보기2': '',
+            '보기3': '',
+            '보기4': '',
+            '보기5': '',
+            '정답': 'an',
+            '키워드': 'article,an,vowel',
+            '해설': '모음(a, e, i, o, u)으로 시작하는 단어 앞에는 부정관사 "an"을 사용합니다. Elephant는 "e"로 시작하므로 "an"을 사용합니다.'
         })
     
     return pd.DataFrame(questions)
@@ -172,6 +276,13 @@ st.markdown("""
     }
     .nav-button {
         margin-top: 10px;
+    }
+    .connection-warning {
+        background-color: #FFFCE9;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border-left: 4px solid #FFEB3B;
+        margin-bottom: 16px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -324,7 +435,7 @@ def teacher_dashboard():
         else:
             st.info("아직 제출된 학생 답안이 없습니다.")
 
-# 학생 포털
+# 학생 포털 함수 수정
 def student_portal():
     st.title(f"👨‍🎓 {st.session_state.user_data['name']}님의 학습 포털")
     st.write(f"학년: {st.session_state.user_data['grade']}")
@@ -351,9 +462,11 @@ def student_portal():
                 st.session_state.current_problem_index = 0
             
             # 진행 상태 표시
-            progress = (st.session_state.current_problem_index + 1) / min(20, len(filtered_problems))
+            total_problems = len(filtered_problems)
+            current_index = st.session_state.current_problem_index + 1
+            progress = current_index / total_problems
             st.progress(progress)
-            st.write(f"문제 {st.session_state.current_problem_index + 1}/{min(20, len(filtered_problems))}")
+            st.write(f"문제 {current_index}/{total_problems}")
             
             # 현재 문제 가져오기
             current_problem = filtered_problems.iloc[st.session_state.current_problem_index]
@@ -389,14 +502,22 @@ def student_portal():
                     prev_problem()
                     st.rerun()
             
+            # 다음 문제로 이동 및 제출 버튼
             with col3:
-                if st.button("다음 문제 →", key="next_button"):
-                    next_problem()
-                    st.rerun()
+                # 마지막 문제가 아닐 경우에만 다음 문제 버튼 표시
+                if current_index < total_problems:
+                    if st.button("다음 문제 →", key="next_button"):
+                        next_problem()
+                        st.rerun()
             
-            # 제출 버튼
+            # 제출 버튼 - 마지막 문제에서만 표시
             with col2:
-                if st.button("제출하기", key="submit_button"):
+                # 마지막 문제일 경우에만 제출 버튼 표시
+                submit_button = False
+                if current_index == total_problems:
+                    submit_button = st.button("제출하기", key="submit_button")
+                
+                if submit_button:
                     if user_answer:
                         # 채점
                         score, feedback = grade_answer(
@@ -441,8 +562,8 @@ def student_portal():
                             pd.DataFrame([new_answer])
                         ], ignore_index=True)
                         
-                        # 자동으로 다음 문제로 이동
-                        next_problem()
+                        # 결과 표시 후 첫 번째 문제로 되돌아가기
+                        st.session_state.current_problem_index = 0
                         st.rerun()
                     else:
                         st.error("답안을 입력해주세요.")
@@ -505,44 +626,96 @@ def login():
         st.markdown(f"스프레드시트 ID: `{SPREADSHEET_ID}`")
         st.markdown(f"[Google Sheets 직접 열기](https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID})")
 
+# 구글 시트 API 연결 확인 함수
+def check_google_sheets_connection():
+    try:
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+        
+        # 인증 파일 확인
+        if not os.path.exists('credentials.json'):
+            return False, "Google API 인증 파일(credentials.json)을 찾을 수 없습니다."
+        
+        # 서비스 계정 인증 시도
+        SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+        credentials = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+        service = build('sheets', 'v4', credentials=credentials)
+        
+        # 스프레드시트 ID 확인
+        sheet_metadata = service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID).execute()
+        title = sheet_metadata.get('properties', {}).get('title', '')
+        
+        return True, f"Google Sheets에 성공적으로 연결되었습니다. 스프레드시트: {title}"
+    except ImportError:
+        return False, "구글 API 라이브러리가 설치되지 않았습니다."
+    except Exception as e:
+        return False, f"Google Sheets 연결 오류: {str(e)}"
+
 # 메인 앱 실행
 def main():
-    # 사이드바 메뉴
-    with st.sidebar:
-        st.image("https://www.gstatic.com/education/classroom/themes/img_read.jpg", width=300)
-        st.title("학원 자동 첨삭 시스템")
-        
-        # 로그아웃 버튼 (인증된 경우에만)
-        if st.session_state.authenticated:
-            st.write(f"사용자: {st.session_state.user_data['name']}")
-            st.write(f"역할: {'선생님' if st.session_state.user_data['role'] == 'teacher' else '학생'}")
-            
-            if st.button("로그아웃"):
-                logout()
-                st.rerun()
-        
-        # 메뉴
-        st.header("메뉴")
-        if st.session_state.authenticated:
-            if st.session_state.user_data["role"] == "teacher":
-                if st.sidebar.button("문제 관리"):
-                    st.session_state.page = "teacher"
-                    st.rerun()
-            else:
-                if st.sidebar.button("문제 풀기"):
-                    st.session_state.page = "student"
-                    st.session_state.current_problem_index = 0
-                    st.rerun()
-        
-        # Google Sheets 정보
-        st.markdown("---")
-        st.caption(f"Spreadsheet ID: {SPREADSHEET_ID[:10]}...")
-        st.caption("© 2025 학원 자동 첨삭 시스템")
+    # 구글 시트 연결 확인
+    sheets_connected, connection_message = check_google_sheets_connection()
     
     # 페이지 라우팅
     if not st.session_state.authenticated:
+        # 로그인 화면에서는 사이드바 완전히 숨김
+        st.markdown("""
+        <style>
+        [data-testid="stSidebar"] {display: none;}
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # 구글 시트 연결 상태 표시 - 화면 상단에 경고로 표시
+        st.markdown("""
+        <style>
+        .connection-warning {
+            background-color: #FFFCE9;
+            padding: 8px 16px;
+            border-radius: 8px;
+            border-left: 4px solid #FFEB3B;
+            margin-bottom: 16px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        if not sheets_connected:
+            st.markdown(f"""
+            <div class="connection-warning">
+                <p>Google Sheets에서 문제를 가져오지 못했습니다. 기본 문제를 사용합니다.</p>
+                <p><small>이유: {connection_message}</small></p>
+            </div>
+            """, unsafe_allow_html=True)
+        
         login()
     else:
+        # 로그인 후에도 사이드바 완전히 숨김
+        st.markdown("""
+        <style>
+        [data-testid="stSidebar"] {display: none;}
+        header {visibility: hidden;}
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # 상단 네비게이션 바 생성
+        col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+        with col1:
+            st.markdown(f"## 학원 자동 첨삭 시스템")
+            
+            # 구글 시트 연결 상태 표시 - 작게 표시
+            if not sheets_connected:
+                st.caption(f"⚠️ Google Sheets 연결 실패: 기본 샘플 문제를 사용합니다")
+        with col2:
+            st.write(f"사용자: {st.session_state.user_data['name']}")
+        with col3:
+            st.write(f"역할: {'선생님' if st.session_state.user_data['role'] == 'teacher' else '학생'}")
+        with col4:
+            if st.button("로그아웃", key="logout_top"):
+                logout()
+                st.rerun()
+        
+        st.markdown("---")
+        
+        # 페이지 내용 표시
         if st.session_state.user_data["role"] == "teacher":
             teacher_dashboard()
         else:

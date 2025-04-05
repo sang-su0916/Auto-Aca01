@@ -4,22 +4,47 @@ from datetime import datetime
 import random
 import os
 from pathlib import Path
+import json
+import traceback
 
-# 구글 시트 연동 모듈 불러오기
-try:
-    from sheets.google_sheets import GoogleSheetsAPI
-    sheets_api = GoogleSheetsAPI()
-    USE_GOOGLE_SHEETS = True
-except Exception as e:
-    print(f"구글 시트 연동 오류: {e}")
-    USE_GOOGLE_SHEETS = False
+# 구글 시트 API 연결 확인 함수
+def check_google_sheets_connection():
+    try:
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+        
+        # 인증 파일 확인
+        if not os.path.exists('credentials.json'):
+            return False, "Google API 인증 파일(credentials.json)을 찾을 수 없습니다."
+        
+        # 서비스 계정 인증 시도
+        SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+        credentials = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+        service = build('sheets', 'v4', credentials=credentials)
+        
+        # 스프레드시트 ID 확인
+        SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID', '1YcKaHcjnx5-WypEpYbcfg04s8TIq280l-gi6iISF5NQ')
+        
+        # 스프레드시트 메타데이터 가져오기 시도
+        sheet_metadata = service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID).execute()
+        title = sheet_metadata.get('properties', {}).get('title', '')
+        
+        return True, f"Google Sheets에 성공적으로 연결되었습니다. 스프레드시트: {title}"
+    except ImportError:
+        return False, "구글 API 라이브러리가 설치되지 않았습니다. 'pip install google-auth google-api-python-client' 명령을 실행하세요."
+    except Exception as e:
+        return False, f"Google Sheets 연결 오류: {str(e)}"
 
 # 페이지 설정
 st.set_page_config(
     page_title="학원 자동 첨삭 시스템",
     page_icon="📚",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
+
+# 구글 스프레드시트 ID 설정 - 참고용으로만 표시
+SPREADSHEET_ID = "1YcKaHcjnx5-WypEpYbcfg04s8TIq280l-gi6iISF5NQ"
 
 # 세션 상태 초기화
 if 'authenticated' not in st.session_state:
@@ -47,15 +72,40 @@ users = {
 
 # 문제 불러오기 함수
 def load_questions():
-    if USE_GOOGLE_SHEETS:
+    if st.session_state.authenticated:
         try:
             # 구글 시트에서 문제 데이터 가져오기
-            problems_data = sheets_api.read_range('problems!A2:N')
-            if not problems_data:
+            from google.oauth2.service_account import Credentials
+            from googleapiclient.discovery import build
+            
+            # 인증 파일 확인
+            if not os.path.exists('credentials.json'):
+                return generate_default_questions()
+            
+            # 서비스 계정 인증 시도
+            SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+            credentials = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+            service = build('sheets', 'v4', credentials=credentials)
+            
+            # 스프레드시트 ID 확인
+            SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID', '1YcKaHcjnx5-WypEpYbcfg04s8TIq280l-gi6iISF5NQ')
+            
+            # 스프레드시트 메타데이터 가져오기 시도
+            sheet_metadata = service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID).execute()
+            title = sheet_metadata.get('properties', {}).get('title', '')
+            
+            if title != "학원 자동 첨삭 시스템":
+                return generate_default_questions()
+            
+            problems_data = service.spreadsheets().values().get(
+                spreadsheetId=SPREADSHEET_ID,
+                range="problems!A2:N"
+            ).execute()
+            if not problems_data.get('values'):
                 return generate_default_questions()
             
             questions = []
-            for row in problems_data:
+            for row in problems_data['values']:
                 if len(row) >= 12:  # 최소 필수 필드 확인
                     question = {
                         "id": row[0],
@@ -204,18 +254,41 @@ def grade_answer(question, user_answer):
         feedback = "정답입니다! 🎉" if is_correct else f"오답입니다. 정답은 '{correct}'입니다."
         
         # 구글 시트에 답안 저장
-        if USE_GOOGLE_SHEETS and st.session_state.authenticated:
+        if st.session_state.authenticated:
             try:
-                sheets_api.append_row('student_answers', [
-                    st.session_state.user_data["username"],
-                    st.session_state.user_data["name"],
-                    st.session_state.user_data.get("grade", ""),
-                    question["id"],
-                    user_choice,
-                    score,
-                    feedback,
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                ])
+                from google.oauth2.service_account import Credentials
+                from googleapiclient.discovery import build
+                
+                # 인증 파일 확인
+                if not os.path.exists('credentials.json'):
+                    return
+                
+                # 서비스 계정 인증 시도
+                SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+                credentials = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+                service = build('sheets', 'v4', credentials=credentials)
+                
+                # 스프레드시트 ID 확인
+                SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID', '1YcKaHcjnx5-WypEpYbcfg04s8TIq280l-gi6iISF5NQ')
+                
+                # 스프레드시트에 답안 저장
+                service.spreadsheets().values().append(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range="student_answers!A2:H",
+                    valueInputOption="RAW",
+                    body={
+                        "values": [[
+                            st.session_state.user_data["username"],
+                            st.session_state.user_data["name"],
+                            st.session_state.user_data.get("grade", ""),
+                            question["id"],
+                            user_choice,
+                            score,
+                            feedback,
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        ]]
+                    }
+                ).execute()
             except Exception as e:
                 print(f"구글 시트에 답안 저장 오류: {e}")
         
@@ -247,18 +320,41 @@ def grade_answer(question, user_answer):
             feedback = "핵심 키워드가 없습니다. 다시 시도해보세요."
         
         # 구글 시트에 답안 저장
-        if USE_GOOGLE_SHEETS and st.session_state.authenticated:
+        if st.session_state.authenticated:
             try:
-                sheets_api.append_row('student_answers', [
-                    st.session_state.user_data["username"],
-                    st.session_state.user_data["name"],
-                    st.session_state.user_data.get("grade", ""),
-                    question["id"],
-                    user_answer,
-                    score,
-                    feedback,
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                ])
+                from google.oauth2.service_account import Credentials
+                from googleapiclient.discovery import build
+                
+                # 인증 파일 확인
+                if not os.path.exists('credentials.json'):
+                    return
+                
+                # 서비스 계정 인증 시도
+                SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+                credentials = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+                service = build('sheets', 'v4', credentials=credentials)
+                
+                # 스프레드시트 ID 확인
+                SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID', '1YcKaHcjnx5-WypEpYbcfg04s8TIq280l-gi6iISF5NQ')
+                
+                # 스프레드시트에 답안 저장
+                service.spreadsheets().values().append(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range="student_answers!A2:H",
+                    valueInputOption="RAW",
+                    body={
+                        "values": [[
+                            st.session_state.user_data["username"],
+                            st.session_state.user_data["name"],
+                            st.session_state.user_data.get("grade", ""),
+                            question["id"],
+                            user_answer,
+                            score,
+                            feedback,
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        ]]
+                    }
+                ).execute()
             except Exception as e:
                 print(f"구글 시트에 답안 저장 오류: {e}")
             
@@ -320,31 +416,73 @@ st.markdown("""
         margin-top: 0.5rem;
         font-style: italic;
     }
+    [data-testid="stSidebar"] {
+        display: none;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # 메인 앱
 def main():
-    # 로그인 상태가 아니면 로그인 화면 표시
+    # 구글 시트 연결 확인
+    sheets_connected, connection_message = check_google_sheets_connection()
+    
+    # 페이지 라우팅
     if not st.session_state.authenticated:
+        # 로그인 화면에서는 사이드바 숨김
+        st.markdown("""
+        <style>
+        [data-testid="stSidebar"] {
+            display: none;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # 구글 시트 연결 상태 표시
+        if not sheets_connected:
+            st.warning(f"Google Sheets에서 문제를 가져오지 못했습니다. 기본 문제를 사용합니다.")
+        
         login()
     else:
-        # 사용자 정보 표시
-        col1, col2, col3 = st.columns([1, 3, 1])
-        with col2:
-            st.markdown(f"<h1 class='main-header'>학생 포털 - {st.session_state.user_data['name']} ({st.session_state.user_data.get('grade', '')})</h1>", unsafe_allow_html=True)
-
-        # 로그아웃 버튼
-        if st.sidebar.button("로그아웃"):
-            logout()
-            st.rerun()
-
-        # 학생인 경우 문제 목록 표시
-        if st.session_state.user_data["role"] == "student":
-            show_student_portal()
-        # 교사인 경우 대시보드 표시
+        # 사이드바 메뉴 - 로그인된 상태에서만 표시
+        with st.sidebar:
+            st.image("https://www.gstatic.com/education/classroom/themes/img_read.jpg", width=300)
+            st.title("학원 자동 첨삭 시스템")
+            
+            # 로그아웃 버튼 (인증된 경우에만)
+            st.write(f"사용자: {st.session_state.user_data['name']}")
+            st.write(f"역할: {'선생님' if st.session_state.user_data['role'] == 'teacher' else '학생'}")
+            
+            if st.button("로그아웃"):
+                logout()
+                st.rerun()
+            
+            # 메뉴
+            st.header("메뉴")
+            if st.session_state.user_data["role"] == "teacher":
+                if st.sidebar.button("문제 관리"):
+                    st.session_state.page = "teacher"
+                    st.rerun()
+            else:
+                if st.sidebar.button("문제 풀기"):
+                    st.session_state.page = "student"
+                    st.session_state.current_problem_index = 0
+                    st.rerun()
+            
+            # Google Sheets 정보
+            st.markdown("---")
+            if sheets_connected:
+                st.success("Google Sheets 연동 성공")
+            else:
+                st.error("Google Sheets 연동 실패")
+            st.caption(f"Spreadsheet ID: {SPREADSHEET_ID[:10]}...")
+            st.caption("© 2025 학원 자동 첨삭 시스템")
+            
+        # 페이지 내용 표시
+        if st.session_state.user_data["role"] == "teacher":
+            teacher_dashboard()
         else:
-            show_teacher_dashboard()
+            student_portal()
 
 # 로그인 페이지
 def login():
@@ -529,10 +667,28 @@ def show_teacher_dashboard():
         st.success("중2 학년용 문제가 생성되었습니다.")
         
         # 구글 시트에 문제 저장
-        if USE_GOOGLE_SHEETS:
+        if st.session_state.authenticated:
             try:
+                from google.oauth2.service_account import Credentials
+                from googleapiclient.discovery import build
+                
+                # 인증 파일 확인
+                if not os.path.exists('credentials.json'):
+                    return
+                
+                # 서비스 계정 인증 시도
+                SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+                credentials = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+                service = build('sheets', 'v4', credentials=credentials)
+                
+                # 스프레드시트 ID 확인
+                SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID', '1YcKaHcjnx5-WypEpYbcfg04s8TIq280l-gi6iISF5NQ')
+                
                 # 기존 문제 삭제
-                sheets_api.clear_range('problems!A2:N')
+                service.spreadsheets().values().clear(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range="problems!A2:N"
+                ).execute()
                 
                 # 새 문제 추가
                 problems_data = []
@@ -555,7 +711,14 @@ def show_teacher_dashboard():
                     ]
                     problems_data.append(row)
                 
-                sheets_api.write_range('problems!A2:N21', problems_data)
+                service.spreadsheets().values().append(
+                    spreadsheetId=SPREADSHEET_ID,
+                    range="problems!A2:N21",
+                    valueInputOption="RAW",
+                    body={
+                        "values": problems_data
+                    }
+                ).execute()
                 st.success("문제가 구글 시트에 저장되었습니다.")
             except Exception as e:
                 st.error(f"구글 시트에 문제 저장 오류: {e}")
@@ -580,14 +743,32 @@ def show_teacher_dashboard():
                             st.markdown(f"- {opt}")
     
     # 학생 답안 확인
-    if USE_GOOGLE_SHEETS:
+    if st.session_state.authenticated:
         st.markdown("---")
         st.subheader("학생 답안 확인")
         
         try:
-            student_answers = sheets_api.read_range('student_answers!A2:H')
-            if student_answers:
-                answers_df = pd.DataFrame(student_answers, columns=[
+            from google.oauth2.service_account import Credentials
+            from googleapiclient.discovery import build
+            
+            # 인증 파일 확인
+            if not os.path.exists('credentials.json'):
+                return
+            
+            # 서비스 계정 인증 시도
+            SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+            credentials = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
+            service = build('sheets', 'v4', credentials=credentials)
+            
+            # 스프레드시트 ID 확인
+            SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID', '1YcKaHcjnx5-WypEpYbcfg04s8TIq280l-gi6iISF5NQ')
+            
+            student_answers = service.spreadsheets().values().get(
+                spreadsheetId=SPREADSHEET_ID,
+                range="student_answers!A2:H"
+            ).execute()
+            if student_answers.get('values'):
+                answers_df = pd.DataFrame(student_answers['values'], columns=[
                     '학생ID', '이름', '학년', '문제ID', '제출답안', '점수', '피드백', '제출시간'
                 ])
                 st.dataframe(answers_df)

@@ -1,11 +1,11 @@
 문제ID,과목,학년,문제유형,난이도,문제내용,보기1,보기2,보기3,보기4,보기5,정답,키워드,해설
-P001,영어,중1,객관식,하,Which of the following is a fruit?,Apple,Book,Pencil,Chair,,Apple,"fruit,apple,vocabulary","Apple(사과)은 과일입니다. 나머지는 과일이 아닙니다."
-P002,영어,중1,객관식,하,"Choose the correct subject pronoun: ___ is my friend.",He,Him,His,Himself,,He,"pronoun,subject pronoun,grammar","He는 주격 대명사입니다. Him(목적격), His(소유격), Himself(재귀대명사)는 주격 대명사가 아닙니다."
-P003,영어,중2,객관식,중,"What time is it? It's ___.",half past six,half to six,six and half,six past half,,half past six,"time,expression,clock","'Half past six'은 6시 30분을 의미합니다."
+P001,영어,중1,객관식,하,Which of the following is a fruit?,Apple,Book,Pencil,Chair,,Apple,"fruit,apple,vocabulary",Apple(사과)은 과일입니다. 나머지는 과일이 아닙니다.
+P002,영어,중1,객관식,하,Choose the correct subject pronoun: ___ is my friend.,He,Him,His,Himself,,He,"pronoun,subject pronoun,grammar","He는 주격 대명사입니다. Him(목적격), His(소유격), Himself(재귀대명사)는 주격 대명사가 아닙니다."
+P003,영어,중2,객관식,중,What time is it? It's ___.,half past six,half to six,six and half,six past half,,half past six,"time,expression,clock",'Half past six'은 6시 30분을 의미합니다.
 P004,영어,중2,객관식,중,Which word is a verb?,Run,Table,Beautiful,Happy,,Run,"verb,part of speech,grammar","Run(달리다)은 동사입니다. Table(명사), Beautiful(형용사), Happy(형용사)는 동사가 아닙니다."
-P005,영어,중3,객관식,중,"Choose the correct sentence.",I went to school yesterday.,I go to school yesterday.,I goed to school yesterday.,I gone to school yesterday.,,I went to school yesterday.,"past tense,grammar,verb form","'I went to school yesterday.'는 과거시제의 올바른 형태입니다. go의 과거형은 went입니다."
+P005,영어,중3,객관식,중,Choose the correct sentence.,I went to school yesterday.,I go to school yesterday.,I goed to school yesterday.,I gone to school yesterday.,,I went to school yesterday.,"past tense,grammar,verb form",'I went to school yesterday.'는 과거시제의 올바른 형태입니다. go의 과거형은 went입니다.
 P006,영어,중3,주관식,중,Write a sentence using the word 'beautiful'.,The flower is beautiful.,,,,,The flower is beautiful.,"sentence writing,adjective,vocabulary","'beautiful'을 사용한 완전한 문장을 작성해야 합니다. 주어, 동사가 포함되어야 합니다."
-P007,영어,고1,객관식,중,"Choose the correct form: He ___ football now.",is playing,plays,play,playing,,is playing,"present continuous,grammar,tense","현재 진행형(be동사 + -ing)은 현재 일어나고 있는 행동을 표현할 때 사용합니다."
-P008,영어,고1,주관식,중,What is the capital of the UK?,London,,,,,London,"capital,UK,geography","영국(UK)의 수도는 런던(London)입니다."
-P009,영어,고2,객관식,상,"Choose the sentence in the passive voice.",The letter was written by John.,John wrote the letter.,John is writing the letter.,John will write the letter.,,The letter was written by John.,"passive voice,grammar,sentence structure","수동태는 'be동사 + 과거분사(p.p)'의 형태입니다. 'The letter was written by John'이 수동태 문장입니다."
-P010,영어,고2,주관식,상,What does 'procrastination' mean?,Delaying or postponing tasks,,,,,Delaying or postponing tasks,"vocabulary,meaning,definition","'procrastination'은 '일이나 과제를 미루는 것'을 의미합니다." 
+P007,영어,고1,객관식,중,Choose the correct form: He ___ football now.,is playing,plays,play,playing,,is playing,"present continuous,grammar,tense",현재 진행형(be동사 + -ing)은 현재 일어나고 있는 행동을 표현할 때 사용합니다.
+P008,영어,고1,주관식,중,What is the capital of the UK?,London,,,,,London,"capital,UK,geography",영국(UK)의 수도는 런던(London)입니다.
+P009,영어,고2,객관식,상,Choose the sentence in the passive voice.,The letter was written by John.,John wrote the letter.,John is writing the letter.,John will write the letter.,,The letter was written by John.,"passive voice,grammar,sentence structure",수동태는 'be동사 + 과거분사(p.p)'의 형태입니다. 'The letter was written by John'이 수동태 문장입니다.
+P010,영어,고2,주관식,상,What does 'procrastination' mean?,Delaying or postponing tasks,,,,,Delaying or postponing tasks,"vocabulary,meaning,definition",'procrastination'은 '일이나 과제를 미루는 것'을 의미합니다. 
