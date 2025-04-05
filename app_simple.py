@@ -102,58 +102,110 @@ def initialize_sample_questions():
     return pd.DataFrame(questions)
 
 def get_question_by_grade(grade, i):
+    # 학년별 문제 유형을 다양하게 구성
     if grade == "중1":
-        return "Which of the following is a fruit?"
+        questions = [
+            "Which of the following is a fruit?",
+            "What is the past tense of 'go'?",
+            "Which animal lives in the ocean?",
+            "What is the capital of the United Kingdom?",
+            "Which subject do you study in a science lab?"
+        ]
+        return questions[i % 5]
     elif grade == "중2":
-        return "What time is it?"
+        questions = [
+            "What time is it on the clock?",
+            "Which of these is a preposition?",
+            "What is the opposite of 'expensive'?",
+            "Choose the correct plural form of 'child'.",
+            "What is the past participle of 'speak'?"
+        ]
+        return questions[i % 5]
     elif grade == "중3":
-        return "Which word is a verb?"
+        questions = [
+            "Which word is a verb?",
+            "Who wrote 'Romeo and Juliet'?",
+            "What is the correct comparative form of 'good'?",
+            "Choose the correct relative pronoun.",
+            "Which sentence is in the passive voice?"
+        ]
+        return questions[i % 5]
     return "Sample question"
 
 def get_option_by_grade(grade, i, option_num):
+    # 학년별 선택지를 다양하게 구성하고 정답 위치를 랜덤하게 배치
     if grade == "중1":
-        options = [['Apple', 'Car', 'Book', 'Pen', ''],
-                  ['Banana', 'House', 'Computer', 'Pencil', ''],
-                  ['Orange', 'School', 'Desk', 'Eraser', ''],
-                  ['Strawberry', 'Door', 'Chair', 'Ruler', ''],
-                  ['Grape', 'Window', 'Table', 'Bag', '']]
-        return options[i % 5][option_num-1]
-    elif grade == "중2":
-        options = [['2:30', '3:15', '4:00', '5:45', ''],
-                  ['4:45', '1:00', '6:30', '8:20', ''],
-                  ['7:20', '9:10', '10:00', '11:30', ''],
-                  ['10:55', '12:05', '1:15', '2:40', ''],
-                  ['6:40', '7:50', '9:25', '11:10', '']]
-        return options[i % 5][option_num-1]
-    elif grade == "중3":
-        # 동사 문제에 대한 보기 개선 - 각 세트는 하나의 동사와 여러 개의 명사, 형용사 등으로 구성
-        options = [
-            ['Run', 'Book', 'School', 'Red', ''],
-            ['Write', 'Table', 'Beautiful', 'Computer', ''],
-            ['Speak', 'Pen', 'Happy', 'Chair', ''],
-            ['Play', 'House', 'Sad', 'Window', ''],
-            ['Study', 'Phone', 'Angry', 'Notebook', '']
+        options_sets = [
+            ['Apple', 'Car', 'Book', 'Pen', ''],  # 과일
+            ['went', 'goed', 'going', 'goning', ''],  # 과거형
+            ['Dolphin', 'Tiger', 'Rabbit', 'Eagle', ''],  # 바다 동물
+            ['London', 'Paris', 'New York', 'Berlin', ''],  # 수도
+            ['Physics', 'History', 'Literature', 'Art', '']  # 과학 과목
         ]
-        return options[i % 5][option_num-1]
+        return options_sets[i % 5][option_num-1]
+    elif grade == "중2":
+        options_sets = [
+            ['3:45', '2:30', '6:15', '9:00', ''],  # 시간
+            ['in', 'happy', 'quickly', 'she', ''],  # 전치사
+            ['cheap', 'costly', 'money', 'price', ''],  # 반의어
+            ['children', 'childs', 'childen', 'childrens', ''],  # 복수형
+            ['spoken', 'speaked', 'spoke', 'speaking', '']  # 과거분사
+        ]
+        return options_sets[i % 5][option_num-1]
+    elif grade == "중3":
+        # 동사 문제 및 다양한 고급 문제
+        options_sets = [
+            ['Write', 'Beautiful', 'Smart', 'Computer', ''],  # 동사
+            ['Shakespeare', 'Dickens', 'Hemingway', 'Tolkien', ''],  # 작가
+            ['better', 'gooder', 'more good', 'best', ''],  # 비교급
+            ['who', 'when', 'where', 'how', ''],  # 관계대명사
+            ['The letter was written yesterday.', 'He wrote a letter yesterday.', 'They are writing letters.', 'She has written many letters.', '']  # 수동태
+        ]
+        return options_sets[i % 5][option_num-1]
     return ""
 
 def get_answer_by_grade(grade, i):
+    # 학년별 문제 정답 - 다양한 위치에 정답을 배치
     if grade == "중1":
-        return ['Apple', 'Banana', 'Orange', 'Strawberry', 'Grape'][i % 5]
+        answers = ['Apple', 'went', 'Dolphin', 'London', 'Physics']
+        return answers[i % 5]
     elif grade == "중2":
-        return ['2:30', '4:45', '7:20', '10:55', '6:40'][i % 5]
+        answers = ['3:45', 'in', 'cheap', 'children', 'spoken']
+        return answers[i % 5]
     elif grade == "중3":
-        # 동사 문제의 정답은 항상 첫 번째 옵션 (동사)
-        return ['Run', 'Write', 'Speak', 'Play', 'Study'][i % 5]
+        answers = ['Write', 'Shakespeare', 'better', 'who', 'The letter was written yesterday.']
+        return answers[i % 5]
     return "Answer"
 
 def get_keywords_by_grade(grade):
+    # 학년별 주관식 키워드
     if grade == "중1":
-        return "fruit,food"
+        keywords = [
+            "fruit,food,apple",
+            "past,went,go",
+            "ocean,sea,marine,dolphin",
+            "capital,UK,England,London,Britain",
+            "science,physics,chemistry,biology,lab"
+        ]
+        return keywords[hash(grade) % 5]  # 학년에 따라 다른 키워드 설정
     elif grade == "중2":
-        return "time,clock,hour"
+        keywords = [
+            "time,clock,hour,minute",
+            "preposition,in,on,at,by",
+            "opposite,antonym,cheap,inexpensive",
+            "plural,children,plural form",
+            "past participle,speak,spoken"
+        ]
+        return keywords[hash(grade) % 5]
     elif grade == "중3":
-        return "verb,action"
+        keywords = [
+            "verb,action,write,run,speak",
+            "playwright,writer,Shakespeare,Romeo,Juliet",
+            "comparative,better,good",
+            "relative pronoun,who,which,that",
+            "passive,passive voice,was,were"
+        ]
+        return keywords[hash(grade) % 5]
     return "keywords"
 
 def initialize_student_answers():
