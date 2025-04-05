@@ -450,6 +450,16 @@ def render_navbar():
         stats_menu = '<a href="javascript:void(0);" onclick="parent.streamlitClick(\'stats\')">성적 통계</a>' if st.session_state.user_data["role"] == "teacher" else '<a href="javascript:void(0);" onclick="parent.streamlitClick(\'grades\')">내 성적</a>'
         user_role = '선생님' if st.session_state.user_data['role'] == 'teacher' else '학생'
         
+        # JSON 객체를 위한 JavaScript 코드 부분 - 중괄호를 포맷팅에서 분리
+        js_script = """
+        <script>
+            function streamlitClick(action) {
+                const data = {"action": action};
+                window.parent.postMessage({"type": "streamlit:setComponentValue", "value": data}, "*");
+            }
+        </script>
+        """
+        
         html = """
         <div class="nav-container">
             <div class="nav-logo">
@@ -464,41 +474,40 @@ def render_navbar():
                 <button class="nav-button" onclick="parent.streamlitClick('logout')">로그아웃</button>
             </div>
         </div>
-        
-        <script>
-            function streamlitClick(action) {
-                const data = {{"action": action}};
-                window.parent.postMessage({{"type": "streamlit:setComponentValue", "value": data}}, "*");
-            }
-        </script>
+        {js_script}
         """.format(
             role_menu=role_menu,
             stats_menu=stats_menu,
             user_name=st.session_state.user_data['name'],
-            user_role=user_role
+            user_role=user_role,
+            js_script=js_script
         )
         st.markdown(html, unsafe_allow_html=True)
         
         # JavaScript 이벤트 처리
         nav_action = st.text_input("", "", key="nav_action", label_visibility="collapsed")
         if nav_action:
-            action_data = json.loads(nav_action)
-            if action_data.get('action') == 'logout':
-                logout()
-                st.rerun()
-            elif action_data.get('action') == 'teacher':
-                st.session_state.page = "teacher"
-                st.rerun()
-            elif action_data.get('action') == 'student':
-                st.session_state.page = "student"
-                st.rerun()
-            elif action_data.get('action') == 'stats':
-                st.session_state.page = "teacher"
-                st.rerun()
-            elif action_data.get('action') == 'grades':
-                st.session_state.page = "student"
-                st.session_state.student_tab = "grades"
-                st.rerun()
+            try:
+                action_data = json.loads(nav_action)
+                if action_data.get('action') == 'logout':
+                    logout()
+                    st.rerun()
+                elif action_data.get('action') == 'teacher':
+                    st.session_state.page = "teacher"
+                    st.rerun()
+                elif action_data.get('action') == 'student':
+                    st.session_state.page = "student"
+                    st.rerun()
+                elif action_data.get('action') == 'stats':
+                    st.session_state.page = "teacher"
+                    st.rerun()
+                elif action_data.get('action') == 'grades':
+                    st.session_state.page = "student"
+                    st.session_state.student_tab = "grades"
+                    st.rerun()
+            except json.JSONDecodeError:
+                st.error("잘못된 형식의 JSON 데이터입니다.")
+                print(f"JSON 파싱 에러: {nav_action}")
 
 # 학생 포털
 def student_portal():
