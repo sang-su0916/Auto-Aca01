@@ -7,6 +7,7 @@ import os
 import json
 from dotenv import load_dotenv
 from pathlib import Path
+import random
 
 # 환경 변수 로드
 load_dotenv()
@@ -18,6 +19,16 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# 사이드바 완전히 숨기기
+st.markdown("""
+<style>
+    [data-testid="collapsedControl"] {display: none;}
+    section[data-testid="stSidebar"] {display: none;}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
 
 # 로그인 화면에서 사이드바 숨김
 if 'authenticated' not in st.session_state or not st.session_state.authenticated:
@@ -273,15 +284,27 @@ def logout():
     st.session_state.problems = []
     st.session_state.student_answers = []
 
-# 다음 문제 버튼 핸들러
+# 다음 문제로 이동하는 함수
 def next_problem():
     if st.session_state.current_problem_index < len(st.session_state.problems) - 1:
         st.session_state.current_problem_index += 1
 
-# 이전 문제 버튼 핸들러
+# 이전 문제로 이동하는 함수
 def prev_problem():
     if st.session_state.current_problem_index > 0:
         st.session_state.current_problem_index -= 1
+
+# 로컬 CSV 파일에 문제 저장
+def save_problem_to_local_csv(new_problem):
+    try:
+        # 기존 데이터 로드
+        df = pd.read_csv(PROBLEMS_CSV)
+        # 새 데이터 추가
+        df = pd.concat([df, pd.DataFrame([new_problem])], ignore_index=True)
+        # 파일에 저장
+        df.to_csv(PROBLEMS_CSV, index=False)
+    except Exception as e:
+        st.error(f"로컬 파일 저장 오류: {str(e)}")
 
 # 교사용 대시보드
 def teacher_dashboard():
@@ -461,18 +484,6 @@ def teacher_dashboard():
         else:
             st.info("통계를 생성할 데이터가 없습니다.")
 
-# 로컬 CSV 파일에 문제 저장
-def save_problem_to_local_csv(new_problem):
-    try:
-        # 기존 데이터 로드
-        df = pd.read_csv(PROBLEMS_CSV)
-        # 새 데이터 추가
-        df = pd.concat([df, pd.DataFrame([new_problem])], ignore_index=True)
-        # 파일에 저장
-        df.to_csv(PROBLEMS_CSV, index=False)
-    except Exception as e:
-        st.error(f"로컬 파일 저장 오류: {str(e)}")
-
 # 학생용 포털
 def student_portal():
     st.title("👨‍🎓 학생 포털")
@@ -517,6 +528,10 @@ def student_portal():
     st.progress((current_index + 1) / total_problems)
     st.write(f"문제 {current_index + 1}/{total_problems}")
     
+    # 모든 문제의 답변을 저장할 세션 상태 변수 초기화
+    if 'all_answers' not in st.session_state:
+        st.session_state.all_answers = [""] * total_problems
+    
     # 현재 문제 표시
     problem = st.session_state.problems[current_index]
     
@@ -545,79 +560,77 @@ def student_portal():
         
         st.markdown(f"### {problem['문제내용']}")
         
-        user_answer = ""
-        submit_pressed = False
+        # 답변 입력 폼 (제출 버튼은 마지막 문제에만 표시)
+        is_last_problem = (current_index == total_problems - 1)
         
-        with st.form("answer_form"):
-            # 객관식 문제
-            if problem['문제유형'] == '객관식':
-                options = [problem[f'보기{i+1}'] for i in range(5) if problem[f'보기{i+1}'] != '']
-                
-                if already_answered:
-                    answer_idx = options.index(previous_answer) if previous_answer in options else 0
-                    user_answer = st.radio(
-                        "답안 선택:", options, index=answer_idx, disabled=True
-                    )
-                else:
-                    user_answer = st.radio("답안 선택:", options)
+        # 객관식 문제
+        if problem['문제유형'] == '객관식':
+            options = []
+            # 비어있지 않은 보기만 추가
+            for i in range(5):
+                option = problem.get(f'보기{i+1}', '')
+                if option and option.strip():
+                    options.append(option)
             
-            # 주관식 문제
-            else:
-                if already_answered:
-                    user_answer = st.text_area("답안 작성:", value=previous_answer, disabled=True)
-                else:
-                    user_answer = st.text_area("답안 작성:")
+            # 이전/다음 문제의 정답을 보기에 추가하여 겹치게 만들기
+            prev_answer = None
+            next_answer = None
             
-            # 제출 버튼
+            # 이전 문제의 정답 가져오기
+            if current_index > 0:
+                prev_problem = st.session_state.problems[current_index - 1]
+                if prev_problem['문제유형'] == '객관식':
+                    prev_answer = prev_problem.get('정답', '')
+                    if prev_answer and prev_answer not in options:
+                        options.append(prev_answer)
+            
+            # 다음 문제의 정답 가져오기
+            if current_index < total_problems - 1:
+                next_problem = st.session_state.problems[current_index + 1]
+                if next_problem['문제유형'] == '객관식':
+                    next_answer = next_problem.get('정답', '')
+                    if next_answer and next_answer not in options:
+                        options.append(next_answer)
+            
+            # 옵션 섞기
+            random.seed(problem['문제ID'])
+            random.shuffle(options)
+            
             if already_answered:
-                submit_button = st.form_submit_button("이미 제출한 문제입니다", disabled=True)
-                
-                # 이전 답변 결과 표시
-                st.info(f"제출한 답변: {previous_answer}")
-                if previous_score >= 80:
-                    st.success(f"점수: {previous_score}점 - {previous_feedback}")
-                elif previous_score >= 50:
-                    st.warning(f"점수: {previous_score}점 - {previous_feedback}")
-                else:
-                    st.error(f"점수: {previous_score}점 - {previous_feedback}")
-                
-                if problem.get('해설'):
-                    with st.expander("해설 보기"):
-                        st.write(problem['해설'])
+                answer_idx = options.index(previous_answer) if previous_answer in options else 0
+                user_answer = st.radio(
+                    "답안 선택:", options, index=answer_idx, disabled=True, key=f"radio_{current_index}"
+                )
+                st.session_state.all_answers[current_index] = user_answer
             else:
-                submit_button = st.form_submit_button("제출하기")
+                # 사용자가 이전에 선택한 답변이 있는 경우 해당 옵션을 선택 상태로 표시
+                default_index = 0
+                if st.session_state.all_answers[current_index] in options:
+                    default_index = options.index(st.session_state.all_answers[current_index])
                 
-                if submit_button and user_answer:
-                    submit_pressed = True
+                user_answer = st.radio(
+                    "답안 선택:", options, index=default_index, key=f"radio_{current_index}"
+                )
+                st.session_state.all_answers[current_index] = user_answer
         
-        # 제출 처리
-        if submit_pressed:
-            # 답안 채점
-            grading_result = grade_answer(
-                problem['문제유형'], 
-                problem['정답'], 
-                user_answer, 
-                problem.get('키워드', '')
-            )
-            
-            # 답안 저장
-            save_student_answer(
-                st.session_state.username,
-                st.session_state.name,
-                st.session_state.grade,
-                problem['문제ID'],
-                user_answer,
-                grading_result['score'],
-                grading_result['feedback']
-            )
-            
-            # 결과 표시
-            if grading_result['score'] >= 80:
-                st.success(f"점수: {grading_result['score']}점 - {grading_result['feedback']}")
-            elif grading_result['score'] >= 50:
-                st.warning(f"점수: {grading_result['score']}점 - {grading_result['feedback']}")
+        # 주관식 문제
+        else:
+            if already_answered:
+                user_answer = st.text_area("답안 작성:", value=previous_answer, disabled=True, key=f"text_{current_index}")
+                st.session_state.all_answers[current_index] = user_answer
             else:
-                st.error(f"점수: {grading_result['score']}점 - {grading_result['feedback']}")
+                user_answer = st.text_area("답안 작성:", value=st.session_state.all_answers[current_index], key=f"text_{current_index}")
+                st.session_state.all_answers[current_index] = user_answer
+        
+        # 이미 답변한 문제에 대한 결과 표시
+        if already_answered:
+            st.info(f"제출한 답변: {previous_answer}")
+            if previous_score >= 80:
+                st.success(f"점수: {previous_score}점 - {previous_feedback}")
+            elif previous_score >= 50:
+                st.warning(f"점수: {previous_score}점 - {previous_feedback}")
+            else:
+                st.error(f"점수: {previous_score}점 - {previous_feedback}")
             
             if problem.get('해설'):
                 with st.expander("해설 보기"):
@@ -634,6 +647,55 @@ def student_portal():
         if current_index < total_problems - 1:
             if st.button("다음 문제 →"):
                 next_problem()
+                st.rerun()
+    
+    # 마지막 문제에서만 제출 버튼 표시
+    if is_last_problem:
+        st.markdown("---")
+        st.subheader("모든 문제 제출")
+        
+        if st.button("전체 문제 제출하기", type="primary"):
+            # 모든 문제에 대한 답변 확인
+            empty_answers = [i+1 for i, ans in enumerate(st.session_state.all_answers) if not ans]
+            
+            if empty_answers:
+                st.error(f"다음 문제가 아직 답변되지 않았습니다: {', '.join(map(str, empty_answers))}")
+            else:
+                # 모든 답변 제출
+                for i, problem in enumerate(st.session_state.problems):
+                    # 이미 제출된 답변은 다시 제출하지 않음
+                    already_submitted = False
+                    if st.session_state.student_answers:
+                        for ans in st.session_state.student_answers:
+                            if (ans['학생ID'] == st.session_state.username and 
+                                ans['문제ID'] == problem['문제ID']):
+                                already_submitted = True
+                                break
+                    
+                    if not already_submitted:
+                        # 답안 채점
+                        grading_result = grade_answer(
+                            problem['문제유형'], 
+                            problem['정답'], 
+                            st.session_state.all_answers[i], 
+                            problem.get('키워드', '')
+                        )
+                        
+                        # 답안 저장
+                        save_student_answer(
+                            st.session_state.username,
+                            st.session_state.name,
+                            st.session_state.grade,
+                            problem['문제ID'],
+                            st.session_state.all_answers[i],
+                            grading_result['score'],
+                            grading_result['feedback']
+                        )
+                
+                st.success("모든 문제가 성공적으로 제출되었습니다!")
+                st.balloons()
+                # 페이지 새로고침
+                time.sleep(2)
                 st.rerun()
     
     # 학생 성적 확인

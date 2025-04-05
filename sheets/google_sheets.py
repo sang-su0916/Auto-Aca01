@@ -451,9 +451,35 @@ class GoogleSheetsAPI:
                 logger.warning("문제가 없습니다.")
                 return []
             
+            # 학년 형식 변환 함수
+            def normalize_grade(grade_str):
+                if not grade_str:
+                    return ""
+                
+                # "중학교 1학년" -> "중1", "중학교 2학년" -> "중2" 등으로 변환
+                if "중학교" in grade_str and "학년" in grade_str:
+                    grade_num = ''.join(filter(str.isdigit, grade_str))
+                    if grade_num:
+                        return f"중{grade_num}"
+                # "고등학교 1학년" -> "고1" 변환
+                elif "고등학교" in grade_str and "학년" in grade_str:
+                    grade_num = ''.join(filter(str.isdigit, grade_str))
+                    if grade_num:
+                        return f"고{grade_num}"
+                return grade_str
+            
             # 학년 필터링
             if grade:
-                filtered_problems = [p for p in all_problems if p.get('학년', '') == grade]
+                normalized_grade = grade
+                filtered_problems = []
+                
+                for problem in all_problems:
+                    problem_grade = problem.get('학년', '')
+                    norm_problem_grade = normalize_grade(problem_grade)
+                    
+                    # 정규화된 학년 값이 일치하면 추가
+                    if norm_problem_grade == normalized_grade:
+                        filtered_problems.append(problem)
             else:
                 filtered_problems = all_problems
             
@@ -497,6 +523,23 @@ class GoogleSheetsAPI:
         try:
             weekly_problems = {}
             
+            # 학년 형식 변환 함수
+            def normalize_grade(grade_str):
+                if not grade_str:
+                    return ""
+                
+                # "중학교 1학년" -> "중1", "중학교 2학년" -> "중2" 등으로 변환
+                if "중학교" in grade_str and "학년" in grade_str:
+                    grade_num = ''.join(filter(str.isdigit, grade_str))
+                    if grade_num:
+                        return f"중{grade_num}"
+                # "고등학교 1학년" -> "고1" 변환
+                elif "고등학교" in grade_str and "학년" in grade_str:
+                    grade_num = ''.join(filter(str.isdigit, grade_str))
+                    if grade_num:
+                        return f"고{grade_num}"
+                return grade_str
+            
             # 오늘부터 지정된 일수까지의 문제 생성
             for day in range(days):
                 # 특정 날짜에 대한 시드 설정
@@ -511,7 +554,16 @@ class GoogleSheetsAPI:
                 
                 # 학년 필터링
                 if grade:
-                    filtered_problems = [p for p in all_problems if p.get('학년', '') == grade]
+                    normalized_grade = grade
+                    filtered_problems = []
+                    
+                    for problem in all_problems:
+                        problem_grade = problem.get('학년', '')
+                        norm_problem_grade = normalize_grade(problem_grade)
+                        
+                        # 정규화된 학년 값이 일치하면 추가
+                        if norm_problem_grade == normalized_grade:
+                            filtered_problems.append(problem)
                 else:
                     filtered_problems = all_problems
                 
