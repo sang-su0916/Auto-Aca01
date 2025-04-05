@@ -82,11 +82,12 @@ def initialize_sample_questions():
     for grade_idx, grade in enumerate(grades):
         for i in range(1, 21):
             idx = grade_idx * 20 + i
+            problem_type = get_problem_type(grade, i)
             questions.append({
                 '문제ID': f'P{idx:03d}',
                 '과목': '영어',
                 '학년': grade,
-                '문제유형': '객관식' if i % 3 != 0 else '주관식',
+                '문제유형': problem_type,
                 '난이도': '중' if i % 3 == 0 else ('상' if i % 3 == 1 else '하'),
                 '문제내용': f'{grade} 영어 문제 {i}: {get_question_by_grade(grade, i)}',
                 '보기1': get_option_by_grade(grade, i, 1),
@@ -126,7 +127,7 @@ def get_question_by_grade(grade, i):
             "Which word is a verb?",
             "Who wrote 'Romeo and Juliet'?",
             "What is the correct comparative form of 'good'?",
-            "Choose the correct relative pronoun.",
+            "Choose the correct relative pronoun for this sentence: 'The man ____ lives next door is friendly.'",
             "Which sentence is in the passive voice?"
         ]
         return questions[i % 5]
@@ -158,7 +159,7 @@ def get_option_by_grade(grade, i, option_num):
             ['Write', 'Beautiful', 'Smart', 'Computer', ''],  # 동사
             ['Shakespeare', 'Dickens', 'Hemingway', 'Tolkien', ''],  # 작가
             ['better', 'gooder', 'more good', 'best', ''],  # 비교급
-            ['who', 'when', 'where', 'how', ''],  # 관계대명사
+            ['who', 'which', 'where', 'when', 'how'],  # 관계대명사
             ['The letter was written yesterday.', 'He wrote a letter yesterday.', 'They are writing letters.', 'She has written many letters.', '']  # 수동태
         ]
         return options_sets[i % 5][option_num-1]
@@ -994,6 +995,15 @@ def main():
             teacher_dashboard()
         else:
             student_portal()
+
+# 문제 유형 결정 함수 추가
+def get_problem_type(grade, i):
+    # 모든 문제를 기본적으로 객관식으로 설정
+    # 특별히 주관식이 필요한 문제만 따로 지정
+    if grade == "중3" and i % 20 == 19:  # 마지막 문제는 주관식으로
+        return "주관식"
+    else:
+        return "객관식"
 
 if __name__ == "__main__":
     main()
