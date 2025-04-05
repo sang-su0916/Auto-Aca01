@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 import time
 from googleapiclient.discovery import build
+from sheets.google_sheets import GoogleSheetsAPI  # GoogleSheetsAPI 클래스 가져오기
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -307,6 +308,30 @@ class GoogleSheetsSetup:
         # 문제 추가
         self.update_values('problems!A2:N46', all_sample_problems)
         logger.info(f"총 {len(all_sample_problems)}개의 샘플 문제가 추가되었습니다.")
+
+# 스프레드시트 데이터 가져오기 함수
+def fetch_problems_from_sheet():
+    """
+    Google Sheets에서 문제 데이터를 가져와 DataFrame으로 반환합니다.
+    오류 발생 시 빈 DataFrame을 반환합니다.
+    """
+    try:
+        # GoogleSheetsAPI 인스턴스 생성
+        api = GoogleSheetsAPI()
+        # 문제 데이터 가져오기
+        problems = api.get_problems()
+        
+        if problems:
+            # 리스트를 DataFrame으로 변환
+            df = pd.DataFrame(problems)
+            logger.info(f"Google Sheets에서 {len(df)}개의 문제를 성공적으로 가져왔습니다.")
+            return df
+        else:
+            logger.warning("Google Sheets에서 가져온 문제가 없습니다.")
+            return pd.DataFrame()
+    except Exception as e:
+        logger.error(f"Google Sheets에서 문제를 가져오는 중 오류 발생: {str(e)}")
+        return pd.DataFrame()
 
 def main():
     """Main function to set up Google Sheets"""
