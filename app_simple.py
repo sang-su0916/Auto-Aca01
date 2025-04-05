@@ -445,28 +445,38 @@ def prev_problem():
 # 상단 네비게이션 바 컴포넌트
 def render_navbar():
     if st.session_state.authenticated:
-        html = f"""
+        # f-string 대신 일반 문자열과 format 사용
+        role_menu = '<a href="javascript:void(0);" onclick="parent.streamlitClick(\'teacher\')">문제 관리</a>' if st.session_state.user_data["role"] == "teacher" else '<a href="javascript:void(0);" onclick="parent.streamlitClick(\'student\')">문제 풀기</a>'
+        stats_menu = '<a href="javascript:void(0);" onclick="parent.streamlitClick(\'stats\')">성적 통계</a>' if st.session_state.user_data["role"] == "teacher" else '<a href="javascript:void(0);" onclick="parent.streamlitClick(\'grades\')">내 성적</a>'
+        user_role = '선생님' if st.session_state.user_data['role'] == 'teacher' else '학생'
+        
+        html = """
         <div class="nav-container">
             <div class="nav-logo">
                 <img src="https://cdn-icons-png.flaticon.com/128/2436/2436882.png" alt="Logo"> 학원 자동 첨삭 시스템
             </div>
             <div class="nav-menu">
-                {'<a href="javascript:void(0);" onclick="parent.streamlitClick(\'teacher\')">문제 관리</a>' if st.session_state.user_data["role"] == "teacher" else '<a href="javascript:void(0);" onclick="parent.streamlitClick(\'student\')">문제 풀기</a>'}
-                {'<a href="javascript:void(0);" onclick="parent.streamlitClick(\'stats\')">성적 통계</a>' if st.session_state.user_data["role"] == "teacher" else '<a href="javascript:void(0);" onclick="parent.streamlitClick(\'grades\')">내 성적</a>'}
+                {role_menu}
+                {stats_menu}
             </div>
             <div class="nav-user">
-                {st.session_state.user_data['name']} ({'선생님' if st.session_state.user_data['role'] == 'teacher' else '학생'})
+                {user_name} ({user_role})
                 <button class="nav-button" onclick="parent.streamlitClick('logout')">로그아웃</button>
             </div>
         </div>
         
         <script>
             function streamlitClick(action) {
-                const data = {{action: action}};
-                window.parent.postMessage({{"type": "streamlit:setComponentValue", "value": data}}, "*");
+                const data = {"action": action};
+                window.parent.postMessage({"type": "streamlit:setComponentValue", "value": data}, "*");
             }
         </script>
-        """
+        """.format(
+            role_menu=role_menu,
+            stats_menu=stats_menu,
+            user_name=st.session_state.user_data['name'],
+            user_role=user_role
+        )
         st.markdown(html, unsafe_allow_html=True)
         
         # JavaScript 이벤트 처리
