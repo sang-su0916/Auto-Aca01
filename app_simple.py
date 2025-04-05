@@ -518,6 +518,10 @@ def student_portal():
     if "student_tab" not in st.session_state:
         st.session_state.student_tab = "problems"
     
+    # 제출 답안 추적을 위한 상태 초기화
+    if "submitted_answers" not in st.session_state:
+        st.session_state.submitted_answers = {}
+    
     # 탭 설정: 문제 풀기, 내 성적
     tab1, tab2 = st.tabs(["📝 문제 풀기", "📊 내 성적"])
     
@@ -552,8 +556,26 @@ def student_portal():
         if len(filtered_problems) == 0:
             st.warning(f"{st.session_state.user_data['grade']} 학년에 해당하는 문제가 없습니다. 관리자에게 문의하세요.")
         else:
+            # 학생 답안 기록 가져오기
+            student_answers = st.session_state.answers_df[
+                st.session_state.answers_df['학생ID'] == st.session_state.user_data['username']
+            ]
+            
+            # 학생이 이미 제출한 문제 ID 세트 생성
+            submitted_problem_ids = set(student_answers['문제ID'].values)
+            
             # 문제 목록
             for i, (_, problem) in enumerate(filtered_problems.iterrows()):
+                problem_id = problem['문제ID']
+                already_submitted = problem_id in submitted_problem_ids
+                
+                # 이미 제출한 문제의 답안과 채점 결과 찾기
+                if already_submitted:
+                    submitted_answer = student_answers[student_answers['문제ID'] == problem_id].iloc[0]
+                    user_answer = submitted_answer['제출답안']
+                    score = submitted_answer['점수']
+                    feedback = submitted_answer['피드백']
+                
                 with st.container():
                     st.markdown(f"""
                     <div class='problem-card'>
@@ -568,89 +590,165 @@ def student_portal():
                             if problem[f'보기{j}'] and not pd.isna(problem[f'보기{j}']):
                                 options.append(problem[f'보기{j}'])
                         
-                        answer = st.radio(
-                            "답을 선택하세요:",
-                            options,
-                            key=f"answer_{problem['문제ID']}"
-                        )
-                        
-                        col1, col2, col3 = st.columns([6, 4, 2])
-                        with col3:
-                            if st.button("제출", key=f"submit_{problem['문제ID']}"):
-                                # 채점
-                                score, feedback = grade_answer(
-                                    problem['문제유형'], 
-                                    problem['정답'], 
-                                    answer,
-                                    problem.get('키워드', '')
-                                )
-                                
-                                # 답안 기록
-                                _record_answer(
-                                    problem['문제ID'],
-                                    answer,
-                                    score,
-                                    feedback
-                                )
-                                
-                                # 채점 결과 표시
-                                if score == 100:
-                                    st.markdown(f"""
-                                    <div class='correct-answer'>
-                                        <strong>✅ 정답입니다!</strong><br>
-                                        정답: {problem['정답']}<br>
-                                        해설: {problem['해설']}
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                else:
-                                    st.markdown(f"""
-                                    <div class='wrong-answer'>
-                                        <strong>❌ {feedback}</strong><br>
-                                        정답: {problem['정답']}<br>
-                                        해설: {problem['해설']}
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                        # 이미 제출한 문제면 선택된 답안 표시하고 disabled 설정
+                        if already_submitted:
+                            # 선택된 답안의 인덱스 찾기
+                            try:
+                                selected_idx = options.index(user_answer)
+                            except ValueError:
+                                selected_idx = 0  # 기본값 (찾지 못한 경우)
+                            
+                            answer = st.radio(
+                                "답을 선택하세요:",
+                                options,
+                                index=selected_idx,
+                                key=f"answer_{problem_id}",
+                                disabled=True
+                            )
+                            
+                            # 채점 결과 표시
+                            if score == 100:
+                                st.markdown(f"""
+                                <div class='correct-answer'>
+                                    <strong>✅ 정답입니다!</strong><br>
+                                    정답: {problem['정답']}<br>
+                                    해설: {problem['해설']}
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <div class='wrong-answer'>
+                                    <strong>❌ {feedback}</strong><br>
+                                    정답: {problem['정답']}<br>
+                                    해설: {problem['해설']}
+                                </div>
+                                """, unsafe_allow_html=True)
+                        else:
+                            # 아직 제출하지 않은 문제는 일반적으로 표시
+                            answer = st.radio(
+                                "답을 선택하세요:",
+                                options,
+                                key=f"answer_{problem_id}",
+                                index=None  # 기본 선택 없음
+                            )
+                            
+                            col1, col2, col3 = st.columns([6, 4, 2])
+                            with col3:
+                                if st.button("제출", key=f"submit_{problem_id}"):
+                                    if answer:  # 답을 선택했는지 확인
+                                        # 채점
+                                        score, feedback = grade_answer(
+                                            problem['문제유형'], 
+                                            problem['정답'], 
+                                            answer,
+                                            problem.get('키워드', '')
+                                        )
+                                        
+                                        # 답안 기록
+                                        _record_answer(
+                                            problem_id,
+                                            answer,
+                                            score,
+                                            feedback
+                                        )
+                                        
+                                        # 채점 결과 표시
+                                        if score == 100:
+                                            st.markdown(f"""
+                                            <div class='correct-answer'>
+                                                <strong>✅ 정답입니다!</strong><br>
+                                                정답: {problem['정답']}<br>
+                                                해설: {problem['해설']}
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                        else:
+                                            st.markdown(f"""
+                                            <div class='wrong-answer'>
+                                                <strong>❌ {feedback}</strong><br>
+                                                정답: {problem['정답']}<br>
+                                                해설: {problem['해설']}
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                        
+                                        # 페이지 새로고침하여 제출 상태 업데이트
+                                        st.rerun()
+                                    else:
+                                        st.error("답을 선택해주세요.")
                     
                     # 주관식 문제
                     else:
-                        answer = st.text_area("답을 입력하세요:", key=f"answer_{problem['문제ID']}")
-                        
-                        col1, col2, col3 = st.columns([6, 4, 2])
-                        with col3:
-                            if st.button("제출", key=f"submit_{problem['문제ID']}"):
-                                # 채점
-                                score, feedback = grade_answer(
-                                    problem['문제유형'], 
-                                    problem['정답'], 
-                                    answer,
-                                    problem.get('키워드', '')
-                                )
-                                
-                                # 답안 기록
-                                _record_answer(
-                                    problem['문제ID'],
-                                    answer,
-                                    score,
-                                    feedback
-                                )
-                                
-                                # 채점 결과 표시
-                                if score == 100:
-                                    st.markdown(f"""
-                                    <div class='correct-answer'>
-                                        <strong>✅ 정답입니다!</strong><br>
-                                        정답: {problem['정답']}<br>
-                                        해설: {problem['해설']}
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                else:
-                                    st.markdown(f"""
-                                    <div class='wrong-answer'>
-                                        <strong>❌ {feedback}</strong><br>
-                                        정답: {problem['정답']}<br>
-                                        해설: {problem['해설']}
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                        # 이미 제출한 문제면 답안 표시하고 disabled 설정
+                        if already_submitted:
+                            answer = st.text_area(
+                                "답을 입력하세요:", 
+                                value=user_answer,
+                                key=f"answer_{problem_id}",
+                                disabled=True
+                            )
+                            
+                            # 채점 결과 표시
+                            if score == 100:
+                                st.markdown(f"""
+                                <div class='correct-answer'>
+                                    <strong>✅ 정답입니다!</strong><br>
+                                    정답: {problem['정답']}<br>
+                                    해설: {problem['해설']}
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <div class='wrong-answer'>
+                                    <strong>❌ {feedback}</strong><br>
+                                    정답: {problem['정답']}<br>
+                                    해설: {problem['해설']}
+                                </div>
+                                """, unsafe_allow_html=True)
+                        else:
+                            # 아직 제출하지 않은 문제는 일반적으로 표시
+                            answer = st.text_area("답을 입력하세요:", key=f"answer_{problem_id}")
+                            
+                            col1, col2, col3 = st.columns([6, 4, 2])
+                            with col3:
+                                if st.button("제출", key=f"submit_{problem_id}"):
+                                    if answer.strip():  # 답을 입력했는지 확인
+                                        # 채점
+                                        score, feedback = grade_answer(
+                                            problem['문제유형'], 
+                                            problem['정답'], 
+                                            answer,
+                                            problem.get('키워드', '')
+                                        )
+                                        
+                                        # 답안 기록
+                                        _record_answer(
+                                            problem_id,
+                                            answer,
+                                            score,
+                                            feedback
+                                        )
+                                        
+                                        # 채점 결과 표시
+                                        if score == 100:
+                                            st.markdown(f"""
+                                            <div class='correct-answer'>
+                                                <strong>✅ 정답입니다!</strong><br>
+                                                정답: {problem['정답']}<br>
+                                                해설: {problem['해설']}
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                        else:
+                                            st.markdown(f"""
+                                            <div class='wrong-answer'>
+                                                <strong>❌ {feedback}</strong><br>
+                                                정답: {problem['정답']}<br>
+                                                해설: {problem['해설']}
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                        
+                                        # 페이지 새로고침하여 제출 상태 업데이트
+                                        st.rerun()
+                                    else:
+                                        st.error("답을 입력해주세요.")
                     
                     st.markdown("</div>", unsafe_allow_html=True)
         
