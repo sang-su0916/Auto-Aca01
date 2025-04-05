@@ -360,6 +360,40 @@ class GoogleSheetsSetup:
         except Exception as e:
             logger.error(f"시트 확인/생성 중 오류 발생: {str(e)}")
             return False
+    
+    def get_problems(self):
+        """Get problems from the spreadsheet"""
+        try:
+            result = self.service.spreadsheets().values().get(
+                spreadsheetId=self.SPREADSHEET_ID,
+                range='problems!A2:N'
+            ).execute()
+            
+            values = result.get('values', [])
+            if not values:
+                logger.info("문제 시트에 데이터가 없습니다.")
+                return []
+            
+            # 열 이름
+            columns = ['문제ID', '과목', '학년', '문제유형', '난이도', '문제내용', 
+                '보기1', '보기2', '보기3', '보기4', '보기5', '정답', '키워드', '해설']
+            
+            # 데이터 형식 변환
+            problems = []
+            for row in values:
+                # 행의 길이가 짧을 경우 빈 문자열로 채움
+                row_data = row + [''] * (14 - len(row))
+                
+                # 딕셔너리로 변환
+                problem = dict(zip(columns, row_data))
+                problems.append(problem)
+            
+            logger.info(f"{len(problems)}개의 문제를 가져왔습니다.")
+            return problems
+        
+        except Exception as e:
+            logger.error(f"문제 가져오기 중 오류 발생: {str(e)}")
+            return []
 
 # 스프레드시트 데이터 가져오기 함수
 def fetch_problems_from_sheet():

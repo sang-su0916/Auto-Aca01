@@ -112,34 +112,49 @@ def initialize_sample_questions():
     return pd.DataFrame(questions)
 
 def get_question_by_grade(grade, i):
-    # 학년별 문제 유형을 다양하게 구성
+    # 학년별로 다양한 문제 유형 제공
     if grade == "중1":
         questions = [
             "Which of the following is a fruit?",
             "What is the past tense of 'go'?",
             "Which animal lives in the ocean?",
             "What is the capital of the United Kingdom?",
-            "Which subject do you study in a science lab?"
+            "Which subject do you study in a science lab?",
+            "Complete the sentence: 'She ___ playing tennis every day.'",
+            "What is the opposite of 'hot'?",
+            "Which month has 28 days (usually)?",
+            "How many days are there in a week?",
+            "Which season comes after spring?"
         ]
-        return questions[i % 5]
+        return questions[i % len(questions)]
     elif grade == "중2":
         questions = [
             "What time is it on the clock?",
             "Which of these is a preposition?",
             "What is the opposite of 'expensive'?",
             "Choose the correct plural form of 'child'.",
-            "What is the past participle of 'speak'?"
+            "What is the past participle of 'speak'?",
+            "Which country is in Europe?",
+            "What is the main function of the heart?",
+            "The Earth revolves around the ___.",
+            "What is the largest planet in our solar system?",
+            "Which of these is not a mammal?"
         ]
-        return questions[i % 5]
+        return questions[i % len(questions)]
     elif grade == "중3":
         questions = [
             "Which word is a verb?",
             "Who wrote 'Romeo and Juliet'?",
             "What is the correct comparative form of 'good'?",
             "Choose the correct relative pronoun for this sentence: 'The man ____ lives next door is friendly.'",
-            "Which sentence is in the passive voice?"
+            "Which sentence is in the passive voice?",
+            "What is the square root of 64?",
+            "Which element has the chemical symbol 'O'?",
+            "What is the past tense of 'bring'?",
+            "Choose the correct meaning of 'ambiguous'.",
+            "Which word is a synonym for 'brave'?"
         ]
-        return questions[i % 5]
+        return questions[i % len(questions)]
     return "Sample question"
 
 def get_option_by_grade(grade, i, option_num):
@@ -150,72 +165,115 @@ def get_option_by_grade(grade, i, option_num):
             ['went', 'goed', 'going', 'goning', ''],  # 과거형
             ['Dolphin', 'Tiger', 'Rabbit', 'Eagle', ''],  # 바다 동물
             ['London', 'Paris', 'New York', 'Berlin', ''],  # 수도
-            ['Physics', 'History', 'Literature', 'Art', '']  # 과학 과목
+            ['Physics', 'History', 'Literature', 'Art', ''],  # 과학 과목
+            ['is', 'are', 'am', 'be', ''],  # 현재 진행형
+            ['cold', 'big', 'small', 'light', ''],  # 반의어
+            ['January', 'February', 'March', 'April', ''],  # 28일
+            ['Five', 'Six', 'Seven', 'Eight', ''],  # 일주일
+            ['Summer', 'Autumn', 'Winter', 'None of these', '']  # 계절
         ]
-        return options_sets[i % 5][option_num-1]
+        return options_sets[i % len(options_sets)][option_num-1]
+    
     elif grade == "중2":
         options_sets = [
             ['3:45', '2:30', '6:15', '9:00', ''],  # 시간
             ['in', 'happy', 'quickly', 'she', ''],  # 전치사
             ['cheap', 'costly', 'money', 'price', ''],  # 반의어
             ['children', 'childs', 'childen', 'childrens', ''],  # 복수형
-            ['spoken', 'speaked', 'spoke', 'speaking', '']  # 과거분사
+            ['spoken', 'speaked', 'spoke', 'speaking', ''],  # 과거분사
+            ['France', 'China', 'Brazil', 'Egypt', ''],  # 유럽 국가
+            ['Pump blood', 'Digest food', 'Filter air', 'Store memory', ''],  # 심장 기능
+            ['Sun', 'Moon', 'Stars', 'Jupiter', ''],  # 지구 공전
+            ['Jupiter', 'Mars', 'Earth', 'Venus', ''],  # 가장 큰 행성
+            ['Dolphin', 'Bat', 'Eagle', 'Whale', '']  # 포유류 아닌 것
         ]
-        return options_sets[i % 5][option_num-1]
+        return options_sets[i % len(options_sets)][option_num-1]
+    
     elif grade == "중3":
-        # 동사 문제 및 다양한 고급 문제
+        # 답변이 다양한 위치에 분포되도록 구성
         options_sets = [
             ['Write', 'Beautiful', 'Smart', 'Computer', ''],  # 동사
             ['Shakespeare', 'Dickens', 'Hemingway', 'Tolkien', ''],  # 작가
             ['better', 'gooder', 'more good', 'best', ''],  # 비교급
             ['who', 'which', 'where', 'when', 'how'],  # 관계대명사
-            ['The letter was written yesterday.', 'He wrote a letter yesterday.', 'They are writing letters.', 'She has written many letters.', '']  # 수동태
+            ['The letter was written yesterday.', 'He wrote a letter yesterday.', 'They are writing letters.', 'She has written many letters.', ''],  # 수동태
+            ['8', '9', '16', '4', ''],  # 제곱근
+            ['Oxygen', 'Gold', 'Calcium', 'Carbon', ''],  # 화학 원소
+            ['brought', 'bringed', 'brang', 'bringing', ''],  # 과거형
+            ['unclear', 'definite', 'exact', 'precise', ''],  # 뜻
+            ['courageous', 'afraid', 'weak', 'shy', '']  # 동의어
         ]
-        return options_sets[i % 5][option_num-1]
+        return options_sets[i % len(options_sets)][option_num-1]
+    
     return ""
 
 def get_answer_by_grade(grade, i):
     # 학년별 문제 정답 - 다양한 위치에 정답을 배치
     if grade == "중1":
-        answers = ['Apple', 'went', 'Dolphin', 'London', 'Physics']
-        return answers[i % 5]
+        # 정답 위치를 다양하게 분포
+        answers = ['Apple', 'went', 'Dolphin', 'London', 'Physics', 'is', 'cold', 'February', 'Seven', 'Summer']
+        return answers[i % len(answers)]
+    
     elif grade == "중2":
-        answers = ['3:45', 'in', 'cheap', 'children', 'spoken']
-        return answers[i % 5]
+        # 정답이 2, 3, 4번 위치에도 있도록 구성
+        answers = ['3:45', 'in', 'cheap', 'children', 'spoken', 'France', 'Pump blood', 'Sun', 'Jupiter', 'Eagle']
+        return answers[i % len(answers)]
+    
     elif grade == "중3":
-        answers = ['Write', 'Shakespeare', 'better', 'who', 'The letter was written yesterday.']
-        return answers[i % 5]
+        # 정답이 여러 위치에 분포되도록 구성
+        answers = ['Write', 'Shakespeare', 'better', 'who', 'The letter was written yesterday.', '8', 'Oxygen', 'brought', 'unclear', 'courageous']
+        return answers[i % len(answers)]
+    
     return "Answer"
 
 def get_keywords_by_grade(grade):
-    # 학년별 주관식 키워드
+    # 학년별로 다양한 키워드 제공
     if grade == "중1":
-        keywords = [
+        keywords_list = [
             "fruit,food,apple",
             "past,went,go",
             "ocean,sea,marine,dolphin",
             "capital,UK,England,London,Britain",
-            "science,physics,chemistry,biology,lab"
+            "science,physics,chemistry,biology,lab",
+            "present continuous,is,present,continuous",
+            "opposite,antonym,cold,hot",
+            "month,February,28 days",
+            "week,seven,7,days",
+            "season,summer,spring,after"
         ]
-        return keywords[hash(grade) % 5]  # 학년에 따라 다른 키워드 설정
+        # 학년과 무관하게 다양한 키워드가 선택되도록 함
+        return keywords_list[hash(grade + str(datetime.now().microsecond)) % len(keywords_list)]
+    
     elif grade == "중2":
-        keywords = [
+        keywords_list = [
             "time,clock,hour,minute",
             "preposition,in,on,at,by",
             "opposite,antonym,cheap,inexpensive",
             "plural,children,plural form",
-            "past participle,speak,spoken"
+            "past participle,speak,spoken",
+            "Europe,France,country,continent",
+            "heart,pump,blood,organ,function",
+            "Earth,revolve,Sun,solar system",
+            "planet,Jupiter,solar system,biggest",
+            "mammal,animal,classification,class"
         ]
-        return keywords[hash(grade) % 5]
+        return keywords_list[hash(grade + str(datetime.now().microsecond)) % len(keywords_list)]
+    
     elif grade == "중3":
-        keywords = [
+        keywords_list = [
             "verb,action,write,run,speak",
             "playwright,writer,Shakespeare,Romeo,Juliet",
             "comparative,better,good",
             "relative pronoun,who,which,that",
-            "passive,passive voice,was,were"
+            "passive,passive voice,was,were",
+            "square root,mathematics,8,64",
+            "element,oxygen,chemistry,O",
+            "past tense,bring,brought",
+            "meaning,ambiguous,unclear,vague",
+            "synonym,brave,courageous"
         ]
-        return keywords[hash(grade) % 5]
+        return keywords_list[hash(grade + str(datetime.now().microsecond)) % len(keywords_list)]
+    
     return "keywords"
 
 def initialize_student_answers():
