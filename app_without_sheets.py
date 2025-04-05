@@ -616,7 +616,7 @@ def load_from_google_sheets():
         credentials_path = 'credentials.json'
         
         # 테스트용 상수 시트 ID (구글 시트 ID가 없을 때 사용)
-        DEFAULT_SHEET_ID = "1ke4Sv6TjOBua-hm-PLavMFHubA1mcJCrg0VVTJzf2d0"
+        DEFAULT_SHEET_ID = "1PV_X2Xdlbh72E_VJSp9_CwhFCezOImu8PdkbBwm-0jA"
         
         if not os.path.exists(credentials_path):
             st.warning("Google Sheets 연동을 위한 credentials.json 파일이 필요합니다.")
