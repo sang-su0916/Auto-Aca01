@@ -3,6 +3,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 import logging
 import random
+import pandas as pd
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -13,7 +14,7 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SERVICE_ACCOUNT_FILE = 'credentials.json'
 
 # The ID of your spreadsheet
-SPREADSHEET_ID = '1hQc5KdnZJKXolGyK1ls1cjjlpLXHJ56S7kfw2M0SJi8'
+SPREADSHEET_ID = '1YcKaHcjnx5-WypEpYbcfg04s8TIq280l-gi6iISF5NQ'
 
 def get_google_sheets_service():
     credentials = Credentials.from_service_account_file(
@@ -21,96 +22,105 @@ def get_google_sheets_service():
     service = build('sheets', 'v4', credentials=credentials)
     return service
 
-def generate_sample_problems():
-    # Sample vocabulary and grammar patterns for each grade
-    grade_content = {
-        '중1': {
-            'vocabulary': ['book', 'pen', 'school', 'friend', 'teacher', 'student', 'computer', 'phone', 'desk', 'chair'],
-            'patterns': ['What is this?', 'Where is the ~?', 'I am ~', 'You are ~', 'He/She is ~']
-        },
-        '중2': {
-            'vocabulary': ['library', 'restaurant', 'hospital', 'airport', 'station', 'market', 'museum', 'park', 'hotel', 'bank'],
-            'patterns': ['Can you ~?', 'Do you like ~?', 'What time ~?', 'How many ~?', 'Why do you ~?']
-        },
-        '중3': {
-            'vocabulary': ['environment', 'technology', 'science', 'culture', 'history', 'society', 'economy', 'education', 'health', 'future'],
-            'patterns': ['Have you ever ~?', 'What would you ~?', 'If I were ~', 'How long ~?', 'What makes you ~?']
-        }
-    }
-
-    problems = []
-    problem_id = 1
-
-    for grade in ['중1', '중2', '중3']:
-        for i in range(20):
-            vocab = random.choice(grade_content[grade]['vocabulary'])
-            pattern = random.choice(grade_content[grade]['patterns'])
+def fetch_problems_from_sheet():
+    """Google Sheets에서 문제 데이터를 가져옵니다"""
+    try:
+        service = get_google_sheets_service()
+        
+        # problems 시트에서 데이터 가져오기
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range='problems!A2:N'
+        ).execute()
+        
+        values = result.get('values', [])
+        
+        if not values:
+            logger.warning("No data found in Google Sheets.")
+            return pd.DataFrame()
             
-            # Generate multiple choice question
-            if i % 2 == 0:  # Vocabulary question
-                question = f"다음 중 '{vocab}'의 뜻으로 가장 적절한 것은?"
-                correct_answer = random.randint(1, 5)  # 1~5 중 정답 선택
-                options = []
-                for j in range(5):
-                    if j + 1 == correct_answer:
-                        options.append(get_korean_meaning(vocab))
-                    else:
-                        options.append(get_wrong_korean_meaning(vocab))
-            else:  # Pattern question
-                question = f"다음 문장 '{pattern}'을 활용한 올바른 표현은?"
-                correct_answer = random.randint(1, 5)
-                options = generate_pattern_options(pattern, vocab)
+        # 데이터프레임 생성
+        columns = ['문제ID', '과목', '학년', '문제유형', '난이도', '문제내용', 
+                  '보기1', '보기2', '보기3', '보기4', '보기5', '정답', '키워드', '해설']
+        
+        problems = []
+        for row in values:
+            # 모든 열이 존재하는지 확인하고 없는 경우 빈 문자열 추가
+            row_extended = row + [''] * (len(columns) - len(row))
+            problem = dict(zip(columns, row_extended[:len(columns)]))
+            problems.append(problem)
+            
+        return pd.DataFrame(problems)
+        
+    except Exception as e:
+        logger.error(f"Error fetching problems from Google Sheets: {e}")
+        return pd.DataFrame()
 
-            problems.append([
-                str(problem_id),  # 문제ID
-                '영어',           # 과목
-                grade,           # 학년
-                '객관식',         # 문제유형
-                ['하', '중', '상'][i % 3],  # 난이도
-                question,        # 문제내용
-                options[0],      # 보기1
-                options[1],      # 보기2
-                options[2],      # 보기3
-                options[3],      # 보기4
-                options[4],      # 보기5
-                str(correct_answer),  # 정답
-                vocab,           # 키워드
-                f"이 문제는 {grade} {vocab}와(과) {pattern} 패턴을 학습하기 위한 문제입니다."  # 해설
-            ])
-            problem_id += 1
-
-    return problems
-
-def get_korean_meaning(word):
-    meanings = {
-        'book': '책', 'pen': '펜', 'school': '학교', 'friend': '친구', 'teacher': '선생님',
-        'student': '학생', 'computer': '컴퓨터', 'phone': '전화기', 'desk': '책상', 'chair': '의자',
-        'library': '도서관', 'restaurant': '식당', 'hospital': '병원', 'airport': '공항',
-        'station': '역', 'market': '시장', 'museum': '박물관', 'park': '공원', 'hotel': '호텔',
-        'bank': '은행', 'environment': '환경', 'technology': '기술', 'science': '과학',
-        'culture': '문화', 'history': '역사', 'society': '사회', 'economy': '경제',
-        'education': '교육', 'health': '건강', 'future': '미래'
-    }
-    return meanings.get(word, '알 수 없음')
-
-def get_wrong_korean_meaning(word):
-    all_meanings = list(set([meaning for meaning in {
-        '책', '펜', '학교', '친구', '선생님', '학생', '컴퓨터', '전화기', '책상', '의자',
-        '도서관', '식당', '병원', '공항', '역', '시장', '박물관', '공원', '호텔', '은행',
-        '환경', '기술', '과학', '문화', '역사', '사회', '경제', '교육', '건강', '미래'
-    } - {get_korean_meaning(word)}]))
-    return random.choice(all_meanings)
-
-def generate_pattern_options(pattern, vocab):
-    base_options = [
-        f"{pattern.replace('~', vocab)}",
-        f"{pattern.replace('~', 'not ' + vocab)}",
-        f"{pattern.replace('~', 'the ' + vocab)}",
-        f"{pattern.replace('~', 'my ' + vocab)}",
-        f"{pattern.replace('~', 'your ' + vocab)}"
-    ]
-    random.shuffle(base_options)
-    return base_options
+def generate_sample_problems():
+    """각 학년별 20문제씩 샘플 문제를 생성합니다"""
+    all_problems = []
+    
+    # 중1 문제 (20문제)
+    for i in range(1, 21):
+        problem = [
+            f'P{i:03d}',  # 문제ID
+            '영어',         # 과목
+            '중1',         # 학년
+            '객관식' if i % 3 != 0 else '주관식',  # 문제유형
+            '중' if i % 3 == 0 else ('상' if i % 3 == 1 else '하'),  # 난이도
+            f'중1 영어 문제 {i}: Which of the following is a fruit?',  # 문제내용
+            'Apple' if i % 5 == 0 else 'Car',  # 보기1
+            'Banana' if i % 5 == 1 else 'House',  # 보기2
+            'Orange' if i % 5 == 2 else 'Book',  # 보기3
+            'Strawberry' if i % 5 == 3 else 'Pen',  # 보기4
+            'Grape' if i % 5 == 4 else '',  # 보기5
+            ['Apple', 'Banana', 'Orange', 'Strawberry', 'Grape'][i % 5],  # 정답
+            'fruit,food',  # 키워드
+            f'The correct answer is {["Apple", "Banana", "Orange", "Strawberry", "Grape"][i % 5]} because it is a fruit.'  # 해설
+        ]
+        all_problems.append(problem)
+    
+    # 중2 문제 (20문제)
+    for i in range(21, 41):
+        problem = [
+            f'P{i:03d}',  # 문제ID
+            '영어',         # 과목
+            '중2',         # 학년
+            '객관식' if i % 3 != 0 else '주관식',  # 문제유형
+            '중' if i % 3 == 0 else ('상' if i % 3 == 1 else '하'),  # 난이도
+            f'중2 영어 문제 {i-20}: What time is it?',  # 문제내용
+            '2:30' if i % 5 == 0 else '3:15',  # 보기1
+            '4:45' if i % 5 == 1 else '1:00',  # 보기2
+            '7:20' if i % 5 == 2 else '9:10',  # 보기3
+            '10:55' if i % 5 == 3 else '12:05',  # 보기4
+            '6:40' if i % 5 == 4 else '',  # 보기5
+            ['2:30', '4:45', '7:20', '10:55', '6:40'][i % 5],  # 정답
+            'time,clock,hour',  # 키워드
+            f'The correct time is {["2:30", "4:45", "7:20", "10:55", "6:40"][i % 5]}.'  # 해설
+        ]
+        all_problems.append(problem)
+    
+    # 중3 문제 (20문제)
+    for i in range(41, 61):
+        problem = [
+            f'P{i:03d}',  # 문제ID
+            '영어',         # 과목
+            '중3',         # 학년
+            '객관식' if i % 3 != 0 else '주관식',  # 문제유형
+            '중' if i % 3 == 0 else ('상' if i % 3 == 1 else '하'),  # 난이도
+            f'중3 영어 문제 {i-40}: Which word is a verb?',  # 문제내용
+            'Run' if i % 5 == 0 else 'Book',  # 보기1
+            'Jump' if i % 5 == 1 else 'Table',  # 보기2
+            'Swim' if i % 5 == 2 else 'Pen',  # 보기3
+            'Dance' if i % 5 == 3 else 'Chair',  # 보기4
+            'Read' if i % 5 == 4 else '',  # 보기5
+            ['Run', 'Jump', 'Swim', 'Dance', 'Read'][i % 5],  # 정답
+            'verb,action',  # 키워드
+            f'{["Run", "Jump", "Swim", "Dance", "Read"][i % 5]} is a verb because it describes an action.'  # 해설
+        ]
+        all_problems.append(problem)
+    
+    return all_problems
 
 def setup_headers():
     service = get_google_sheets_service()
@@ -158,5 +168,6 @@ def setup_headers():
     except Exception as e:
         print(f"An error occurred: {e}")
 
-if __name__ == '__main__':
-    setup_headers() 
+if __name__ == "__main__":
+    setup_headers()
+    print("Google Sheets setup completed successfully!") 
