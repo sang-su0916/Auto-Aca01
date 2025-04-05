@@ -63,7 +63,7 @@ def initialize_sample_questions():
             # Google Sheets에서 문제 데이터 가져오기
             df = fetch_problems_from_sheet()
             if not df.empty:
-                st.success(f"Google Sheets에서 {len(df)}개의 문제를 가져왔습니다!")
+                st.success(f"Google Sheets에서 {len(df)}개의 문제를 가져왔습니다.")
                 return df
             else:
                 st.warning("Google Sheets에서 문제를 가져오지 못했습니다. 기본 문제를 생성합니다.")
@@ -725,8 +725,14 @@ def teacher_dashboard():
         st.markdown("""<div class="exam-container">""", unsafe_allow_html=True)
         st.markdown("<h2>문제 관리</h2>", unsafe_allow_html=True)
         
-        # Google Sheets 정보 표시
-        st.info(f"Google Sheets ID: {SPREADSHEET_ID}")
+        # Google Sheets 연동 상태 표시
+        if SHEETS_AVAILABLE:
+            st.success("Google Sheets 연동이 활성화되어 있습니다.")
+            # Google Sheets ID는 개발자만 볼 수 있도록 토글로 숨김
+            with st.expander("Google Sheets 연동 정보", expanded=False):
+                st.info(f"Google Sheets ID: {SPREADSHEET_ID}")
+        else:
+            st.warning("Google Sheets 연동이 비활성화되어 있습니다. 기본 문제가 사용됩니다.")
         
         col1, col2 = st.columns([3, 1])
         with col2:
@@ -828,13 +834,15 @@ def login():
         else:
             st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
     
-    # 기본 계정 안내
-    st.markdown("---")
-    st.markdown("### 기본 계정")
-    st.markdown("- 교사: `admin` / `1234` (관리자, 선생님)")
-    st.markdown("- 학생1: `student1` / `1234` (홍길동, 중3)")
-    st.markdown("- 학생2: `student2` / `1234` (김철수, 중2)")
-    st.markdown("- 학생3: `student3` / `1234` (박영희, 중1)")
+    # 기본 계정 정보는 화면에 표시하지 않음
+    # 기본 계정 정보를 표시할 수 있는 버튼 추가
+    if st.checkbox("기본 계정 정보 보기", value=False):
+        st.markdown("---")
+        st.markdown("### 기본 계정")
+        st.markdown("- 교사: `admin` / `1234` (관리자, 선생님)")
+        st.markdown("- 학생1: `student1` / `1234` (홍길동, 중3)")
+        st.markdown("- 학생2: `student2` / `1234` (김철수, 중2)")
+        st.markdown("- 학생3: `student3` / `1234` (박영희, 중1)")
     
     st.markdown("</div>", unsafe_allow_html=True)
 
