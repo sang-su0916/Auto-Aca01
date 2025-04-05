@@ -31,9 +31,10 @@ class GoogleSheetsAPI:
             logger.error("Google API 패키지를 찾을 수 없습니다. 'pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client'를 실행하세요.")
             raise ImportError("Google API 패키지를 찾을 수 없습니다.")
         
+        # 환경 변수에서 스프레드시트 ID를 가져올 수 없는 경우 기본값 사용
         if not self.SPREADSHEET_ID:
-            logger.error("환경 변수 'GOOGLE_SHEETS_SPREADSHEET_ID'가 설정되지 않았습니다.")
-            raise ValueError("스프레드시트 ID가 환경 변수에 설정되지 않았습니다.")
+            self.SPREADSHEET_ID = "1ke4Sv6TjOBua-hm-PLayMFHubA1mcJCrg0VVTJzf2d0"
+            logger.info(f"환경 변수에서 스프레드시트 ID를 찾을 수 없어 기본값을 사용합니다: {self.SPREADSHEET_ID}")
         
         # credentials.json 파일 확인
         if not os.path.exists('credentials.json'):
