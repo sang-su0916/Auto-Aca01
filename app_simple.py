@@ -15,9 +15,11 @@ st.set_page_config(
 # 구글 시트 모듈 가져오기
 try:
     from sheets.setup_sheets import SHEETS_AVAILABLE, SPREADSHEET_ID, fetch_problems_from_sheet
+    SHEETS_AVAILABLE = True
+    print("구글 시트 모듈 로드 성공!")
 except ImportError:
     SHEETS_AVAILABLE = False
-    SPREADSHEET_ID = "기본 스프레드시트 ID"
+    SPREADSHEET_ID = "1ke4Sv6TjOBua-hm-PLayMFHubA1mcJCrg0VVTJzf2d0"
     # 구글 시트 모듈을 가져올 수 없는 경우 대체 함수 정의
     def fetch_problems_from_sheet():
         return pd.DataFrame()
@@ -67,6 +69,10 @@ users_db = initialize_user_db()
 
 # 기본 데이터 초기화
 def initialize_sample_questions():
+    # 강제로 Google Sheets ID 설정
+    os.environ['GOOGLE_SHEETS_SPREADSHEET_ID'] = "1ke4Sv6TjOBua-hm-PLayMFHubA1mcJCrg0VVTJzf2d0"
+    
+    # 강제로 구글 시트 연결 시도
     if SHEETS_AVAILABLE:
         try:
             # Google Sheets에서 문제 데이터 가져오기
@@ -163,45 +169,45 @@ def get_option_by_grade(grade, i, option_num):
         options_sets = [
             ['Apple', 'Car', 'Book', 'Pen', ''],  # 과일
             ['went', 'goed', 'going', 'goning', ''],  # 과거형
-            ['Dolphin', 'Tiger', 'Rabbit', 'Eagle', ''],  # 바다 동물
-            ['London', 'Paris', 'New York', 'Berlin', ''],  # 수도
-            ['Physics', 'History', 'Literature', 'Art', ''],  # 과학 과목
-            ['is', 'are', 'am', 'be', ''],  # 현재 진행형
-            ['cold', 'big', 'small', 'light', ''],  # 반의어
-            ['January', 'February', 'March', 'April', ''],  # 28일
+            ['Tiger', 'Dolphin', 'Rabbit', 'Eagle', ''],  # 바다 동물
+            ['Paris', 'London', 'New York', 'Berlin', ''],  # 수도
+            ['History', 'Physics', 'Literature', 'Art', ''],  # 과학 과목
+            ['are', 'is', 'am', 'be', ''],  # 현재 진행형
+            ['big', 'cold', 'small', 'light', ''],  # 반의어
+            ['March', 'February', 'January', 'April', ''],  # 28일
             ['Five', 'Six', 'Seven', 'Eight', ''],  # 일주일
-            ['Summer', 'Autumn', 'Winter', 'None of these', '']  # 계절
+            ['Winter', 'Summer', 'Autumn', 'None of these', '']  # 계절
         ]
         return options_sets[i % len(options_sets)][option_num-1]
     
     elif grade == "중2":
         options_sets = [
-            ['3:45', '2:30', '6:15', '9:00', ''],  # 시간
-            ['in', 'happy', 'quickly', 'she', ''],  # 전치사
-            ['cheap', 'costly', 'money', 'price', ''],  # 반의어
-            ['children', 'childs', 'childen', 'childrens', ''],  # 복수형
-            ['spoken', 'speaked', 'spoke', 'speaking', ''],  # 과거분사
-            ['France', 'China', 'Brazil', 'Egypt', ''],  # 유럽 국가
-            ['Pump blood', 'Digest food', 'Filter air', 'Store memory', ''],  # 심장 기능
-            ['Sun', 'Moon', 'Stars', 'Jupiter', ''],  # 지구 공전
-            ['Jupiter', 'Mars', 'Earth', 'Venus', ''],  # 가장 큰 행성
-            ['Dolphin', 'Bat', 'Eagle', 'Whale', '']  # 포유류 아닌 것
+            ['2:30', '3:45', '6:15', '9:00', ''],  # 시간
+            ['quickly', 'in', 'happy', 'she', ''],  # 전치사
+            ['costly', 'cheap', 'money', 'price', ''],  # 반의어
+            ['childs', 'children', 'childen', 'childrens', ''],  # 복수형
+            ['speaked', 'spoke', 'spoken', 'speaking', ''],  # 과거분사
+            ['China', 'France', 'Brazil', 'Egypt', ''],  # 유럽 국가
+            ['Digest food', 'Pump blood', 'Filter air', 'Store memory', ''],  # 심장 기능
+            ['Moon', 'Sun', 'Stars', 'Jupiter', ''],  # 지구 공전
+            ['Mars', 'Venus', 'Jupiter', 'Earth', ''],  # 가장 큰 행성
+            ['Bat', 'Whale', 'Dolphin', 'Eagle', '']  # 포유류 아닌 것
         ]
         return options_sets[i % len(options_sets)][option_num-1]
     
     elif grade == "중3":
         # 답변이 다양한 위치에 분포되도록 구성
         options_sets = [
-            ['Write', 'Beautiful', 'Smart', 'Computer', ''],  # 동사
-            ['Shakespeare', 'Dickens', 'Hemingway', 'Tolkien', ''],  # 작가
-            ['better', 'gooder', 'more good', 'best', ''],  # 비교급
-            ['who', 'which', 'where', 'when', 'how'],  # 관계대명사
-            ['The letter was written yesterday.', 'He wrote a letter yesterday.', 'They are writing letters.', 'She has written many letters.', ''],  # 수동태
-            ['8', '9', '16', '4', ''],  # 제곱근
-            ['Oxygen', 'Gold', 'Calcium', 'Carbon', ''],  # 화학 원소
-            ['brought', 'bringed', 'brang', 'bringing', ''],  # 과거형
-            ['unclear', 'definite', 'exact', 'precise', ''],  # 뜻
-            ['courageous', 'afraid', 'weak', 'shy', '']  # 동의어
+            ['Beautiful', 'Smart', 'Write', 'Computer', ''],  # 동사
+            ['Dickens', 'Hemingway', 'Shakespeare', 'Tolkien', ''],  # 작가
+            ['gooder', 'more good', 'better', 'best', ''],  # 비교급
+            ['which', 'where', 'when', 'who', 'how'],  # 관계대명사
+            ['He wrote a letter yesterday.', 'They are writing letters.', 'She has written many letters.', 'The letter was written yesterday.', ''],  # 수동태
+            ['9', '16', '4', '8', ''],  # 제곱근
+            ['Gold', 'Calcium', 'Carbon', 'Oxygen', ''],  # 화학 원소
+            ['bringed', 'bringing', 'brang', 'brought', ''],  # 과거형
+            ['definite', 'exact', 'precise', 'unclear', ''],  # 뜻
+            ['afraid', 'weak', 'shy', 'courageous', '']  # 동의어
         ]
         return options_sets[i % len(options_sets)][option_num-1]
     
@@ -487,7 +493,15 @@ def grade_answer(problem_type, correct_answer, user_answer, keywords=None):
         if user_answer.strip().lower() == correct_answer.strip().lower():
             return 100, "정답입니다!"
         else:
-            return 0, f"오답입니다. 정답은 '{correct_answer}'입니다."
+            # 첨삭 기능 추가: 오답 유형에 따른 상세 피드백
+            if '과거형' in correct_answer or '과거' in keywords:
+                return 0, f"오답입니다. 정답은 '{correct_answer}'입니다. 영어 동사의 불규칙 과거형을 확인해보세요."
+            elif '시제' in keywords:
+                return 0, f"오답입니다. 정답은 '{correct_answer}'입니다. 문장의 시제를 다시 확인해보세요."
+            elif '전치사' in keywords:
+                return 0, f"오답입니다. 정답은 '{correct_answer}'입니다. 적절한 전치사 사용법을 복습하세요."
+            else:
+                return 0, f"오답입니다. 정답은 '{correct_answer}'입니다. 문제를 다시 한 번 꼼꼼히 읽어보세요."
     
     # 주관식 문제 채점
     elif problem_type == '주관식':
@@ -498,22 +512,34 @@ def grade_answer(problem_type, correct_answer, user_answer, keywords=None):
         if user_answer == correct_answer:
             return 100, "정답입니다!"
         
-        # 키워드 기반 부분 점수 채점
+        # 키워드 기반 부분 점수 채점 및 첨삭 기능 강화
         if keywords:
             keyword_list = [k.strip().lower() for k in keywords.split(',')]
             matched_keywords = [k for k in keyword_list if k in user_answer]
+            missing_keywords = [k for k in keyword_list if k not in user_answer]
             
             if matched_keywords:
                 score = min(100, int(len(matched_keywords) / len(keyword_list) * 100))
                 if score >= 80:
-                    feedback = f"거의 정답입니다! 포함된 키워드: {', '.join(matched_keywords)}"
+                    feedback = f"거의 정답입니다! 포함된 키워드: {', '.join(matched_keywords)}. 놓친 키워드: {', '.join(missing_keywords)}"
                 elif score >= 50:
-                    feedback = f"부분 정답입니다. 포함된 키워드: {', '.join(matched_keywords)}"
+                    feedback = f"부분 정답입니다. 포함된 키워드: {', '.join(matched_keywords)}. 더 추가해야 할 키워드: {', '.join(missing_keywords)}"
                 else:
-                    feedback = f"더 정확한 답변이 필요합니다. 정답은 '{correct_answer}'입니다."
+                    # 첨삭 기능 강화: 학생의 답안에 대한 구체적인 피드백
+                    feedback = f"답변이 불완전합니다. 포함된 키워드({', '.join(matched_keywords)})는 좋지만, 다음 개념들도 포함해야 합니다: {', '.join(missing_keywords)}. 정답은 '{correct_answer}'입니다."
                 return score, feedback
+            
+            # 첨삭 기능 강화: 키워드를 하나도 맞추지 못한 경우
+            return 0, f"답변에 필요한 핵심 키워드가 없습니다. 중요 개념: {', '.join(keyword_list[:3])}... 정답은 '{correct_answer}'입니다."
         
-        return 0, f"오답입니다. 정답은 '{correct_answer}'입니다."
+        # 첨삭 기능 강화: 키워드가 없는 경우에도 상세한 피드백 제공
+        # 답안의 길이에 따른 피드백
+        if len(user_answer) < len(correct_answer) * 0.5:
+            return 0, f"답변이 너무 짧습니다. 더 자세한 설명이 필요합니다. 정답은 '{correct_answer}'입니다."
+        elif len(user_answer) > len(correct_answer) * 1.5:
+            return 0, f"답변이 너무 장황합니다. 더 간결하게 핵심만 작성해 보세요. 정답은 '{correct_answer}'입니다."
+        else:
+            return 0, f"오답입니다. 정답은 '{correct_answer}'입니다."
     
     return 0, "알 수 없는 문제 유형입니다."
 
