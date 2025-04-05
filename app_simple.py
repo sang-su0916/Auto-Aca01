@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="학원 자동 첨삭 시스템",
     page_icon="📚",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"  # 사이드바를 기본적으로 숨김
 )
 
 # Google Sheets 연동 관련 import 시도
@@ -186,6 +186,60 @@ if "total_problems" not in st.session_state:
 st.markdown("""
 <style>
     .main { padding: 0rem 1rem; }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* 상단 네비게이션 */
+    .nav-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #e0e0e0;
+        margin-bottom: 1.5rem;
+    }
+    .nav-logo {
+        font-weight: bold;
+        font-size: 1.2rem;
+        display: flex;
+        align-items: center;
+    }
+    .nav-logo img {
+        height: 30px;
+        margin-right: 10px;
+    }
+    .nav-menu {
+        display: flex;
+        gap: 20px;
+    }
+    .nav-user {
+        font-size: 0.9rem;
+        color: #555;
+    }
+    .nav-button {
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+    .nav-button:hover {
+        background-color: #45a049;
+    }
+    
+    /* 문제지 스타일 */
+    .exam-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
     .stButton>button {
         width: 100%;
         border-radius: 5px;
@@ -212,7 +266,7 @@ st.markdown("""
         background-color: #f9f9f9;
         padding: 1.5rem;
         border-radius: 10px;
-        margin: 1rem 0;
+        margin: 1.5rem 0;
         border: 1px solid #e0e0e0;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
@@ -220,6 +274,7 @@ st.markdown("""
         font-weight: bold;
         color: #1976D2;
         margin-bottom: 0.5rem;
+        font-size: 1.1rem;
     }
     .problem-content {
         font-size: 1.1rem;
@@ -227,9 +282,6 @@ st.markdown("""
     }
     .options-container {
         margin-left: 1rem;
-    }
-    .nav-button {
-        margin-top: 10px;
     }
     .answer-section {
         margin-top: 1rem;
@@ -253,19 +305,54 @@ st.markdown("""
     .exam-title {
         text-align: center;
         font-weight: bold;
-        font-size: 1.5rem;
-        margin-bottom: 2rem;
+        font-size: 1.6rem;
+        margin-bottom: 2.5rem;
         padding: 1rem;
         background-color: #f0f0f0;
         border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     .student-info {
-        margin-bottom: 1rem;
-        padding: 0.5rem;
+        margin-bottom: 1.5rem;
+        padding: 0.8rem;
         border: 1px solid #e0e0e0;
         border-radius: 5px;
-        font-size: 0.9rem;
+        font-size: 1rem;
         background-color: #fafafa;
+    }
+    .login-container {
+        max-width: 450px;
+        margin: 3rem auto;
+        padding: 2rem;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .login-logo {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .login-title {
+        font-size: 1.8rem;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        color: #333;
+    }
+    .stats-card {
+        background-color: white;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        text-align: center;
+    }
+    .stats-number {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #1976D2;
+    }
+    .stats-label {
+        font-size: 0.9rem;
+        color: #555;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -355,86 +442,86 @@ def prev_problem():
     if st.session_state.current_problem_index > 0:
         st.session_state.current_problem_index -= 1
 
-# 교사 대시보드
-def teacher_dashboard():
-    st.title(f"👨‍🏫 교사 대시보드 - {st.session_state.user_data['name']} 선생님")
-    st.write("문제 관리 및 학생 성적 확인")
-    
-    tab1, tab2 = st.tabs(["문제 관리", "성적 통계"])
-    
-    with tab1:
-        st.subheader("📝 문제 관리")
+# 상단 네비게이션 바 컴포넌트
+def render_navbar():
+    if st.session_state.authenticated:
+        html = f"""
+        <div class="nav-container">
+            <div class="nav-logo">
+                <img src="https://cdn-icons-png.flaticon.com/128/2436/2436882.png" alt="Logo"> 학원 자동 첨삭 시스템
+            </div>
+            <div class="nav-menu">
+                {'<a href="javascript:void(0);" onclick="parent.streamlitClick(\'teacher\')">문제 관리</a>' if st.session_state.user_data["role"] == "teacher" else '<a href="javascript:void(0);" onclick="parent.streamlitClick(\'student\')">문제 풀기</a>'}
+                {'<a href="javascript:void(0);" onclick="parent.streamlitClick(\'stats\')">성적 통계</a>' if st.session_state.user_data["role"] == "teacher" else '<a href="javascript:void(0);" onclick="parent.streamlitClick(\'grades\')">내 성적</a>'}
+            </div>
+            <div class="nav-user">
+                {st.session_state.user_data['name']} ({'선생님' if st.session_state.user_data['role'] == 'teacher' else '학생'})
+                <button class="nav-button" onclick="parent.streamlitClick('logout')">로그아웃</button>
+            </div>
+        </div>
         
-        # Google Sheets 정보 표시
-        st.info(f"Google Sheets ID: {SPREADSHEET_ID}")
-        st.markdown(f"[Google Sheets 열기](https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID})")
+        <script>
+            function streamlitClick(action) {
+                const data = {{action: action}};
+                window.parent.postMessage({{"type": "streamlit:setComponentValue", "value": data}}, "*");
+            }
+        </script>
+        """
+        st.markdown(html, unsafe_allow_html=True)
         
-        # 새로고침 버튼
-        if st.button("Google Sheets에서 문제 새로고침"):
-            st.session_state.problems_df = initialize_sample_questions()
-            st.success("문제가 새로고침되었습니다!")
-            st.rerun()
-        
-        # 기존 문제 표시
-        problems_df = st.session_state.problems_df
-        
-        # 학년별 필터링
-        grade_filter = st.selectbox("학년 필터링", ["전체"] + sorted(problems_df['학년'].unique().tolist()))
-        
-        if grade_filter != "전체":
-            filtered_df = problems_df[problems_df['학년'] == grade_filter]
-        else:
-            filtered_df = problems_df
-        
-        if not filtered_df.empty:
-            st.dataframe(filtered_df)
-            st.success(f"총 {len(filtered_df)}개의 문제가 등록되어 있습니다.")
-        else:
-            st.info("현재 등록된 문제가 없습니다.")
-            
-    # 성적 통계 탭
-    with tab2:
-        st.subheader("📊 성적 통계")
-        
-        # 학생 답안 데이터 로드
-        student_answers_df = st.session_state.answers_df
-        
-        if not student_answers_df.empty:
-            st.dataframe(student_answers_df)
-            
-            # 간단한 통계
-            if '점수' in student_answers_df.columns:
-                avg_score = student_answers_df['점수'].mean()
-                st.metric("평균 점수", f"{avg_score:.1f}점")
-                
-                # 학생별 평균 점수
-                st.subheader("학생별 평균 점수")
-                student_avg = student_answers_df.groupby('이름')['점수'].mean().reset_index()
-                student_avg.columns = ['학생', '평균 점수']
-                st.dataframe(student_avg)
-        else:
-            st.info("아직 제출된 학생 답안이 없습니다.")
+        # JavaScript 이벤트 처리
+        nav_action = st.text_input("", "", key="nav_action", label_visibility="collapsed")
+        if nav_action:
+            action_data = eval(nav_action)
+            if action_data.get('action') == 'logout':
+                logout()
+                st.rerun()
+            elif action_data.get('action') == 'teacher':
+                st.session_state.page = "teacher"
+                st.rerun()
+            elif action_data.get('action') == 'student':
+                st.session_state.page = "student"
+                st.rerun()
+            elif action_data.get('action') == 'stats':
+                st.session_state.page = "teacher"
+                st.rerun()
+            elif action_data.get('action') == 'grades':
+                st.session_state.page = "student"
+                st.session_state.student_tab = "grades"
+                st.rerun()
 
 # 학생 포털
 def student_portal():
-    st.markdown(f"<h2>학생 포털</h2>", unsafe_allow_html=True)
+    # 상단 네비게이션 바
+    render_navbar()
     
-    # 학생 정보 표시
-    st.markdown(f"""
-    <div class='student-info'>
-        <p>이름: {st.session_state.user_data['name']}</p>
-        <p>학년: {st.session_state.user_data['grade']}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # 학생 탭 상태 초기화
+    if "student_tab" not in st.session_state:
+        st.session_state.student_tab = "problems"
     
     # 탭 설정: 문제 풀기, 내 성적
-    tabs = st.tabs(["📝 문제 풀기", "📊 내 성적"])
+    tab1, tab2 = st.tabs(["📝 문제 풀기", "📊 내 성적"])
     
-    with tabs[0]: # 문제 풀기 탭
+    # 탭 선택
+    if st.session_state.student_tab == "grades":
+        tab2.selectbox = True
+    
+    with tab1: # 문제 풀기 탭
+        st.markdown("""<div class="exam-container">""", unsafe_allow_html=True)
+        
         # 시험지 제목
         st.markdown(f"""
         <div class='exam-title'>
-            🏫 학원 자동 첨삭 시스템 - {st.session_state.user_data['grade']} 영어 시험
+            🏫 {st.session_state.user_data['grade']} 영어 시험
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 학생 정보 표시
+        st.markdown(f"""
+        <div class='student-info'>
+            <strong>이름:</strong> {st.session_state.user_data['name']} | 
+            <strong>학년:</strong> {st.session_state.user_data['grade']} | 
+            <strong>학생ID:</strong> {st.session_state.user_data['username']}
         </div>
         """, unsafe_allow_html=True)
         
@@ -453,7 +540,6 @@ def student_portal():
                     <div class='problem-card'>
                         <div class='problem-number'>문제 {i+1}. [{problem['난이도']}] - {problem['문제유형']}</div>
                         <div class='problem-content'>{problem['문제내용']}</div>
-                    </div>
                     """, unsafe_allow_html=True)
                     
                     # 객관식 문제
@@ -469,82 +555,100 @@ def student_portal():
                             key=f"answer_{problem['문제ID']}"
                         )
                         
-                        if st.button("제출", key=f"submit_{problem['문제ID']}"):
-                            # 채점
-                            score, feedback = grade_answer(
-                                problem['문제유형'], 
-                                problem['정답'], 
-                                answer,
-                                problem.get('키워드', '')
-                            )
-                            
-                            # 답안 기록
-                            _record_answer(
-                                problem['문제ID'],
-                                answer,
-                                score,
-                                feedback
-                            )
-                            
-                            # 채점 결과 표시
-                            if score == 100:
-                                st.markdown(f"""
-                                <div class='correct-answer'>
-                                    <strong>✅ 정답입니다!</strong><br>
-                                    정답: {problem['정답']}<br>
-                                    해설: {problem['해설']}
-                                </div>
-                                """, unsafe_allow_html=True)
-                            else:
-                                st.markdown(f"""
-                                <div class='wrong-answer'>
-                                    <strong>❌ {feedback}</strong><br>
-                                    정답: {problem['정답']}<br>
-                                    해설: {problem['해설']}
-                                </div>
-                                """, unsafe_allow_html=True)
+                        col1, col2, col3 = st.columns([6, 4, 2])
+                        with col3:
+                            if st.button("제출", key=f"submit_{problem['문제ID']}"):
+                                # 채점
+                                score, feedback = grade_answer(
+                                    problem['문제유형'], 
+                                    problem['정답'], 
+                                    answer,
+                                    problem.get('키워드', '')
+                                )
+                                
+                                # 답안 기록
+                                _record_answer(
+                                    problem['문제ID'],
+                                    answer,
+                                    score,
+                                    feedback
+                                )
+                                
+                                # 채점 결과 표시
+                                if score == 100:
+                                    st.markdown(f"""
+                                    <div class='correct-answer'>
+                                        <strong>✅ 정답입니다!</strong><br>
+                                        정답: {problem['정답']}<br>
+                                        해설: {problem['해설']}
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"""
+                                    <div class='wrong-answer'>
+                                        <strong>❌ {feedback}</strong><br>
+                                        정답: {problem['정답']}<br>
+                                        해설: {problem['해설']}
+                                    </div>
+                                    """, unsafe_allow_html=True)
                     
                     # 주관식 문제
                     else:
                         answer = st.text_area("답을 입력하세요:", key=f"answer_{problem['문제ID']}")
                         
-                        if st.button("제출", key=f"submit_{problem['문제ID']}"):
-                            # 채점
-                            score, feedback = grade_answer(
-                                problem['문제유형'], 
-                                problem['정답'], 
-                                answer,
-                                problem.get('키워드', '')
-                            )
-                            
-                            # 답안 기록
-                            _record_answer(
-                                problem['문제ID'],
-                                answer,
-                                score,
-                                feedback
-                            )
-                            
-                            # 채점 결과 표시
-                            if score == 100:
-                                st.markdown(f"""
-                                <div class='correct-answer'>
-                                    <strong>✅ 정답입니다!</strong><br>
-                                    정답: {problem['정답']}<br>
-                                    해설: {problem['해설']}
-                                </div>
-                                """, unsafe_allow_html=True)
-                            else:
-                                st.markdown(f"""
-                                <div class='wrong-answer'>
-                                    <strong>❌ {feedback}</strong><br>
-                                    정답: {problem['정답']}<br>
-                                    해설: {problem['해설']}
-                                </div>
-                                """, unsafe_allow_html=True)
+                        col1, col2, col3 = st.columns([6, 4, 2])
+                        with col3:
+                            if st.button("제출", key=f"submit_{problem['문제ID']}"):
+                                # 채점
+                                score, feedback = grade_answer(
+                                    problem['문제유형'], 
+                                    problem['정답'], 
+                                    answer,
+                                    problem.get('키워드', '')
+                                )
+                                
+                                # 답안 기록
+                                _record_answer(
+                                    problem['문제ID'],
+                                    answer,
+                                    score,
+                                    feedback
+                                )
+                                
+                                # 채점 결과 표시
+                                if score == 100:
+                                    st.markdown(f"""
+                                    <div class='correct-answer'>
+                                        <strong>✅ 정답입니다!</strong><br>
+                                        정답: {problem['정답']}<br>
+                                        해설: {problem['해설']}
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"""
+                                    <div class='wrong-answer'>
+                                        <strong>❌ {feedback}</strong><br>
+                                        정답: {problem['정답']}<br>
+                                        해설: {problem['해설']}
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
     
-    with tabs[1]: # 내 성적 탭
-        st.subheader("내 성적")
+    with tab2: # 내 성적 탭
+        st.markdown("""<div class="exam-container">""", unsafe_allow_html=True)
+        st.markdown("<h2>내 성적</h2>", unsafe_allow_html=True)
+        
+        # 학생 정보 표시
+        st.markdown(f"""
+        <div class='student-info'>
+            <strong>이름:</strong> {st.session_state.user_data['name']} | 
+            <strong>학년:</strong> {st.session_state.user_data['grade']} | 
+            <strong>학생ID:</strong> {st.session_state.user_data['username']}
+        </div>
+        """, unsafe_allow_html=True)
         
         # 학생의 답안 기록 필터링
         student_answers = st.session_state.answers_df[
@@ -560,12 +664,32 @@ def student_portal():
             correct_count = len(student_answers[student_answers['점수'] == 100])
             
             col1, col2, col3 = st.columns(3)
-            col1.metric("푼 문제 수", answered_count)
-            col2.metric("맞은 문제 수", correct_count)
-            col3.metric("평균 점수", f"{avg_score:.1f}")
+            with col1:
+                st.markdown("""
+                <div class="stats-card">
+                    <div class="stats-number">{}</div>
+                    <div class="stats-label">푼 문제 수</div>
+                </div>
+                """.format(answered_count), unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown("""
+                <div class="stats-card">
+                    <div class="stats-number">{}</div>
+                    <div class="stats-label">맞은 문제 수</div>
+                </div>
+                """.format(correct_count), unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown("""
+                <div class="stats-card">
+                    <div class="stats-number">{:.1f}</div>
+                    <div class="stats-label">평균 점수</div>
+                </div>
+                """.format(avg_score), unsafe_allow_html=True)
             
             # 답안 기록 표
-            st.markdown("### 답안 기록")
+            st.markdown("<h3>답안 기록</h3>", unsafe_allow_html=True)
             
             for _, answer in student_answers.iterrows():
                 problem_id = answer['문제ID']
@@ -576,6 +700,84 @@ def student_portal():
                     st.markdown(f"**정답:** {problem['정답']}")
                     st.markdown(f"**점수:** {answer['점수']}")
                     st.markdown(f"**피드백:** {answer['피드백']}")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+
+# 교사 대시보드
+def teacher_dashboard():
+    # 상단 네비게이션 바
+    render_navbar()
+    
+    # 탭 설정
+    tab1, tab2 = st.tabs(["📝 문제 관리", "📊 성적 통계"])
+    
+    with tab1:
+        st.markdown("""<div class="exam-container">""", unsafe_allow_html=True)
+        st.markdown("<h2>문제 관리</h2>", unsafe_allow_html=True)
+        
+        # Google Sheets 정보 표시
+        st.info(f"Google Sheets ID: {SPREADSHEET_ID}")
+        
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            # 새로고침 버튼
+            if st.button("문제 새로고침"):
+                st.session_state.problems_df = initialize_sample_questions()
+                st.success("문제가 새로고침되었습니다!")
+                st.rerun()
+        
+        # 기존 문제 표시
+        problems_df = st.session_state.problems_df
+        
+        # 학년별 필터링
+        grade_filter = st.selectbox("학년별 필터링", ["전체"] + sorted(problems_df['학년'].unique().tolist()))
+        
+        if grade_filter != "전체":
+            filtered_df = problems_df[problems_df['학년'] == grade_filter]
+        else:
+            filtered_df = problems_df
+        
+        if not filtered_df.empty:
+            st.dataframe(filtered_df, use_container_width=True)
+            st.success(f"총 {len(filtered_df)}개의 문제가 등록되어 있습니다.")
+        else:
+            st.info("현재 등록된 문제가 없습니다.")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    # 성적 통계 탭
+    with tab2:
+        st.markdown("""<div class="exam-container">""", unsafe_allow_html=True)
+        st.markdown("<h2>성적 통계</h2>", unsafe_allow_html=True)
+        
+        # 학생 답안 데이터 로드
+        student_answers_df = st.session_state.answers_df
+        
+        if not student_answers_df.empty:
+            # 학년별 필터링
+            st.markdown("<h3>학생별 점수</h3>", unsafe_allow_html=True)
+            
+            st.dataframe(student_answers_df, use_container_width=True)
+            
+            # 간단한 통계
+            if '점수' in student_answers_df.columns:
+                # 학생별 평균 점수
+                student_avg = student_answers_df.groupby('이름')['점수'].mean().reset_index()
+                student_avg.columns = ['학생', '평균 점수']
+                
+                st.markdown("<h3>학생별 평균 점수</h3>", unsafe_allow_html=True)
+                st.dataframe(student_avg, use_container_width=True)
+                
+                # 학년별 평균 점수
+                grade_avg = student_answers_df.groupby('학년')['점수'].mean().reset_index()
+                grade_avg.columns = ['학년', '평균 점수']
+                
+                st.markdown("<h3>학년별 평균 점수</h3>", unsafe_allow_html=True)
+                st.dataframe(grade_avg, use_container_width=True)
+        else:
+            st.info("아직 제출된 학생 답안이 없습니다.")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # 답안 기록 함수
 def _record_answer(problem_id, answer, score, feedback):
@@ -599,70 +801,35 @@ def _record_answer(problem_id, answer, score, feedback):
 
 # 로그인 화면
 def login():
-    st.title("🏫 학원 자동 첨삭 시스템")
-    st.write("학생들의 영어 문제 풀이를 자동으로 채점하고 피드백을 제공합니다.")
+    st.markdown("""
+    <div class="login-container">
+        <div class="login-logo">
+            <img src="https://cdn-icons-png.flaticon.com/128/2436/2436882.png" alt="Logo" width="80">
+        </div>
+        <h1 class="login-title">학원 자동 첨삭 시스템</h1>
+    """, unsafe_allow_html=True)
     
-    # 로그인 폼
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.subheader("로그인")
-        username = st.text_input("아이디")
-        password = st.text_input("비밀번호", type="password")
-        
-        if st.button("로그인"):
-            if authenticate_user(username, password):
-                st.rerun()
-            else:
-                st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
-        
-        # 기본 계정 안내
-        st.markdown("---")
-        st.markdown("### 기본 계정")
-        st.markdown("- 교사: `admin` / `1234` (관리자, 선생님)")
-        st.markdown("- 학생1: `student1` / `1234` (홍길동, 중3)")
-        st.markdown("- 학생2: `student2` / `1234` (김철수, 중2)")
-        st.markdown("- 학생3: `student3` / `1234` (박영희, 중1)")
-        
-        # Google Sheets 정보
-        st.markdown("---")
-        st.markdown("### Google Sheets 연동")
-        st.markdown(f"스프레드시트 ID: `{SPREADSHEET_ID}`")
-        st.markdown(f"[Google Sheets 직접 열기](https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID})")
+    username = st.text_input("아이디")
+    password = st.text_input("비밀번호", type="password")
+    
+    if st.button("로그인", key="login_btn"):
+        if authenticate_user(username, password):
+            st.rerun()
+        else:
+            st.error("아이디 또는 비밀번호가 일치하지 않습니다.")
+    
+    # 기본 계정 안내
+    st.markdown("---")
+    st.markdown("### 기본 계정")
+    st.markdown("- 교사: `admin` / `1234` (관리자, 선생님)")
+    st.markdown("- 학생1: `student1` / `1234` (홍길동, 중3)")
+    st.markdown("- 학생2: `student2` / `1234` (김철수, 중2)")
+    st.markdown("- 학생3: `student3` / `1234` (박영희, 중1)")
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # 메인 앱 실행
 def main():
-    # 사이드바 메뉴
-    with st.sidebar:
-        st.image("https://www.gstatic.com/education/classroom/themes/img_read.jpg", width=300)
-        st.title("학원 자동 첨삭 시스템")
-        
-        # 로그아웃 버튼 (인증된 경우에만)
-        if st.session_state.authenticated:
-            st.write(f"사용자: {st.session_state.user_data['name']}")
-            st.write(f"역할: {'선생님' if st.session_state.user_data['role'] == 'teacher' else '학생'}")
-            
-            if st.button("로그아웃"):
-                logout()
-                st.rerun()
-        
-        # 메뉴
-        st.header("메뉴")
-        if st.session_state.authenticated:
-            if st.session_state.user_data["role"] == "teacher":
-                if st.sidebar.button("문제 관리"):
-                    st.session_state.page = "teacher"
-                    st.rerun()
-            else:
-                if st.sidebar.button("문제 풀기"):
-                    st.session_state.page = "student"
-                    st.session_state.current_problem_index = 0
-                    st.rerun()
-        
-        # Google Sheets 정보
-        st.markdown("---")
-        st.caption(f"Spreadsheet ID: {SPREADSHEET_ID[:10]}...")
-        st.caption("© 2025 학원 자동 첨삭 시스템")
-    
     # 페이지 라우팅
     if not st.session_state.authenticated:
         login()
