@@ -3,7 +3,16 @@ import pandas as pd
 import os
 import json
 from datetime import datetime
-from sheets.setup_sheets import fetch_problems_from_sheet, SPREADSHEET_ID
+
+# Google Sheets 연동 관련 import 시도
+try:
+    from sheets.setup_sheets import fetch_problems_from_sheet, SPREADSHEET_ID
+    SHEETS_AVAILABLE = True
+except ImportError as e:
+    SHEETS_AVAILABLE = False
+    st.error(f"Google Sheets 연동 모듈을 가져오는 중 오류 발생: {str(e)}")
+    # 기본 스프레드시트 ID 설정
+    SPREADSHEET_ID = "1ke4Sv6TjOBua-hm-PLayMFHubA1mcJCrg0VVTJzf2d0"
 
 # 페이지 설정
 st.set_page_config(
@@ -49,17 +58,20 @@ users_db = initialize_user_db()
 
 # 기본 데이터 초기화
 def initialize_sample_questions():
-    try:
-        # Google Sheets에서 문제 데이터 가져오기
-        df = fetch_problems_from_sheet()
-        if not df.empty:
-            st.success(f"Google Sheets에서 {len(df)}개의 문제를 가져왔습니다!")
-            return df
-        else:
-            st.warning("Google Sheets에서 문제를 가져오지 못했습니다. 기본 문제를 생성합니다.")
-    except Exception as e:
-        st.error(f"Google Sheets 연결 오류: {str(e)}")
-        st.error("기본 문제를 생성합니다.")
+    if SHEETS_AVAILABLE:
+        try:
+            # Google Sheets에서 문제 데이터 가져오기
+            df = fetch_problems_from_sheet()
+            if not df.empty:
+                st.success(f"Google Sheets에서 {len(df)}개의 문제를 가져왔습니다!")
+                return df
+            else:
+                st.warning("Google Sheets에서 문제를 가져오지 못했습니다. 기본 문제를 생성합니다.")
+        except Exception as e:
+            st.error(f"Google Sheets 연결 오류: {str(e)}")
+            st.error("기본 문제를 생성합니다.")
+    else:
+        st.warning("Google Sheets 연동 모듈을 사용할 수 없습니다. 기본 문제를 생성합니다.")
     
     # 기본 문제 생성 (Sheets 연결 실패 시)
     questions = []

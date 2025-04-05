@@ -2,7 +2,6 @@ import gspread
 import os
 import pandas as pd
 import logging
-from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 import json
@@ -14,8 +13,14 @@ from sheets.google_sheets import GoogleSheetsAPI  # GoogleSheetsAPI 클래스 �
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# 환경 변수 로드
-load_dotenv()
+# 환경 변수 관련 설정
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    DOTENV_AVAILABLE = True
+except ImportError:
+    DOTENV_AVAILABLE = False
+    print("dotenv 모듈을 찾을 수 없습니다. 환경 변수는 직접 설정된 값을 사용합니다.")
 
 # 스프레드시트 ID 설정
 SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID')
@@ -26,7 +31,8 @@ if not SPREADSHEET_ID:
 class GoogleSheetsSetup:
     def __init__(self):
         """Initialize Google Sheets API with credentials"""
-        load_dotenv()
+        if not DOTENV_AVAILABLE:
+            logger.warning("dotenv 모듈을 사용할 수 없습니다. 환경 변수는 직접 설정된 값을 사용합니다.")
         
         self.SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
         self.SERVICE_ACCOUNT_FILE = 'credentials.json'
