@@ -199,6 +199,7 @@ st.markdown("""
         padding: 1rem;
         border-radius: 5px;
         margin: 1rem 0;
+        border-left: 4px solid #4CAF50;
     }
     .feedback-box {
         background-color: #e3f2fd;
@@ -215,8 +216,56 @@ st.markdown("""
         border: 1px solid #e0e0e0;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
+    .problem-number {
+        font-weight: bold;
+        color: #1976D2;
+        margin-bottom: 0.5rem;
+    }
+    .problem-content {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+    }
+    .options-container {
+        margin-left: 1rem;
+    }
     .nav-button {
         margin-top: 10px;
+    }
+    .answer-section {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e0e0e0;
+    }
+    .correct-answer {
+        background-color: #E8F5E9;
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        margin-top: 0.5rem;
+        border-left: 4px solid #4CAF50;
+    }
+    .wrong-answer {
+        background-color: #FFEBEE;
+        padding: 0.5rem 1rem;
+        border-radius: 5px;
+        margin-top: 0.5rem;
+        border-left: 4px solid #F44336;
+    }
+    .exam-title {
+        text-align: center;
+        font-weight: bold;
+        font-size: 1.5rem;
+        margin-bottom: 2rem;
+        padding: 1rem;
+        background-color: #f0f0f0;
+        border-radius: 10px;
+    }
+    .student-info {
+        margin-bottom: 1rem;
+        padding: 0.5rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 5px;
+        font-size: 0.9rem;
+        background-color: #fafafa;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -368,152 +417,185 @@ def teacher_dashboard():
 
 # 학생 포털
 def student_portal():
-    st.title(f"👨‍🎓 {st.session_state.user_data['name']}님의 학습 포털")
-    st.write(f"학년: {st.session_state.user_data['grade']}")
+    st.markdown(f"<h2>학생 포털</h2>", unsafe_allow_html=True)
     
-    tab1, tab2 = st.tabs(["문제 풀기", "내 성적"])
+    # 학생 정보 표시
+    st.markdown(f"""
+    <div class='student-info'>
+        <p>이름: {st.session_state.user_data['name']}</p>
+        <p>학년: {st.session_state.user_data['grade']}</p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    with tab1:
-        st.subheader("📝 문제 풀기")
+    # 탭 설정: 문제 풀기, 내 성적
+    tabs = st.tabs(["📝 문제 풀기", "📊 내 성적"])
+    
+    with tabs[0]: # 문제 풀기 탭
+        # 시험지 제목
+        st.markdown(f"""
+        <div class='exam-title'>
+            🏫 학원 자동 첨삭 시스템 - {st.session_state.user_data['grade']} 영어 시험
+        </div>
+        """, unsafe_allow_html=True)
         
-        # 문제 목록 필터링 (학년별)
-        problems_df = st.session_state.problems_df
-        student_grade = st.session_state.user_data['grade']
+        # 문제 필터링 (학생 학년에 맞는 문제)
+        filtered_problems = st.session_state.problems_df[
+            st.session_state.problems_df['학년'] == st.session_state.user_data['grade']
+        ]
         
-        # 학년별 필터링
-        filtered_problems = problems_df[problems_df['학년'] == student_grade]
-        
-        if filtered_problems.empty:
-            st.warning(f"{student_grade} 학년에 해당하는 문제가 없습니다. 모든 문제를 표시합니다.")
-            filtered_problems = problems_df
-        
-        if not filtered_problems.empty:
-            # 문제 인덱스 확인 및 조정
-            total_problems = min(20, len(filtered_problems))
-            st.session_state.total_problems = total_problems
-            
-            if st.session_state.current_problem_index >= total_problems:
-                st.session_state.current_problem_index = 0
-            
-            # 진행 상태 표시
-            progress = (st.session_state.current_problem_index + 1) / total_problems
-            st.progress(progress)
-            st.write(f"문제 {st.session_state.current_problem_index + 1}/{total_problems}")
-            
-            # 현재 문제 가져오기
-            current_problem = filtered_problems.iloc[st.session_state.current_problem_index]
-            
-            # 문제 표시
-            st.markdown("<div class='problem-card'>", unsafe_allow_html=True)
-            st.markdown(f"### 문제: {current_problem['문제내용']}")
-            st.markdown(f"**난이도**: {current_problem['난이도']} | **유형**: {current_problem['문제유형']}")
-            
-            # 정답 입력란
-            user_answer = ""
-            
-            # 객관식 문제인 경우 보기 표시
-            if current_problem['문제유형'] == '객관식':
-                options = []
-                for i in range(1, 6):
-                    option_key = f'보기{i}'
-                    if current_problem[option_key] and isinstance(current_problem[option_key], str) and current_problem[option_key].strip():
-                        options.append(current_problem[option_key])
-                
-                # 답안 선택
-                user_answer = st.radio("답안 선택:", options, key=f"radio_{st.session_state.current_problem_index}")
-            else:
-                # 주관식 답안 입력
-                user_answer = st.text_area("답안 작성:", height=100, placeholder="답변을 입력하세요...", key=f"text_{st.session_state.current_problem_index}")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-            # 네비게이션 버튼
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col1:
-                if st.button("← 이전 문제", key="prev_button") and st.session_state.current_problem_index > 0:
-                    prev_problem()
-                    st.rerun()
-            
-            with col3:
-                if st.button("다음 문제 →", key="next_button") and st.session_state.current_problem_index < total_problems - 1:
-                    next_problem()
-                    st.rerun()
-            
-            # 제출 버튼
-            with col2:
-                if st.button("제출하기", key="submit_button"):
-                    if user_answer:
-                        # 채점
-                        score, feedback = grade_answer(
-                            current_problem['문제유형'], 
-                            current_problem['정답'], 
-                            user_answer, 
-                            current_problem['키워드']
+        if len(filtered_problems) == 0:
+            st.warning(f"{st.session_state.user_data['grade']} 학년에 해당하는 문제가 없습니다. 관리자에게 문의하세요.")
+        else:
+            # 문제 목록
+            for i, (_, problem) in enumerate(filtered_problems.iterrows()):
+                with st.container():
+                    st.markdown(f"""
+                    <div class='problem-card'>
+                        <div class='problem-number'>문제 {i+1}. [{problem['난이도']}] - {problem['문제유형']}</div>
+                        <div class='problem-content'>{problem['문제내용']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # 객관식 문제
+                    if problem['문제유형'] == '객관식':
+                        options = []
+                        for j in range(1, 6):
+                            if problem[f'보기{j}'] and not pd.isna(problem[f'보기{j}']):
+                                options.append(problem[f'보기{j}'])
+                        
+                        answer = st.radio(
+                            "답을 선택하세요:",
+                            options,
+                            key=f"answer_{problem['문제ID']}"
                         )
                         
-                        # 결과 표시
-                        st.markdown(f"### 채점 결과")
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("점수", f"{score}점")
-                        with col2:
-                            st.metric("정답", current_problem['정답'])
-                        
-                        st.markdown("<div class='feedback-box'>", unsafe_allow_html=True)
-                        st.markdown(f"**피드백**: {feedback}")
-                        st.markdown("</div>", unsafe_allow_html=True)
-                        
-                        if current_problem['해설']:
-                            st.markdown("<div class='result-card'>", unsafe_allow_html=True)
-                            st.markdown(f"**해설**: {current_problem['해설']}")
-                            st.markdown("</div>", unsafe_allow_html=True)
-                        
-                        # 답안 저장
-                        new_answer = {
-                            '학생ID': st.session_state.user_data['username'],
-                            '이름': st.session_state.user_data['name'],
-                            '학년': st.session_state.user_data['grade'],
-                            '문제ID': current_problem['문제ID'],
-                            '제출답안': user_answer,
-                            '점수': score,
-                            '피드백': feedback,
-                            '제출시간': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }
-                        
-                        # 새 답안을 DataFrame에 추가
-                        st.session_state.answers_df = pd.concat([
-                            st.session_state.answers_df,
-                            pd.DataFrame([new_answer])
-                        ], ignore_index=True)
-                        
+                        if st.button("제출", key=f"submit_{problem['문제ID']}"):
+                            # 채점
+                            score, feedback = grade_answer(
+                                problem['문제유형'], 
+                                problem['정답'], 
+                                answer,
+                                problem.get('키워드', '')
+                            )
+                            
+                            # 답안 기록
+                            _record_answer(
+                                problem['문제ID'],
+                                answer,
+                                score,
+                                feedback
+                            )
+                            
+                            # 채점 결과 표시
+                            if score == 100:
+                                st.markdown(f"""
+                                <div class='correct-answer'>
+                                    <strong>✅ 정답입니다!</strong><br>
+                                    정답: {problem['정답']}<br>
+                                    해설: {problem['해설']}
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <div class='wrong-answer'>
+                                    <strong>❌ {feedback}</strong><br>
+                                    정답: {problem['정답']}<br>
+                                    해설: {problem['해설']}
+                                </div>
+                                """, unsafe_allow_html=True)
+                    
+                    # 주관식 문제
                     else:
-                        st.error("답안을 입력해주세요.")
-        else:
-            st.error("등록된 문제가 없습니다.")
+                        answer = st.text_area("답을 입력하세요:", key=f"answer_{problem['문제ID']}")
+                        
+                        if st.button("제출", key=f"submit_{problem['문제ID']}"):
+                            # 채점
+                            score, feedback = grade_answer(
+                                problem['문제유형'], 
+                                problem['정답'], 
+                                answer,
+                                problem.get('키워드', '')
+                            )
+                            
+                            # 답안 기록
+                            _record_answer(
+                                problem['문제ID'],
+                                answer,
+                                score,
+                                feedback
+                            )
+                            
+                            # 채점 결과 표시
+                            if score == 100:
+                                st.markdown(f"""
+                                <div class='correct-answer'>
+                                    <strong>✅ 정답입니다!</strong><br>
+                                    정답: {problem['정답']}<br>
+                                    해설: {problem['해설']}
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <div class='wrong-answer'>
+                                    <strong>❌ {feedback}</strong><br>
+                                    정답: {problem['정답']}<br>
+                                    해설: {problem['해설']}
+                                </div>
+                                """, unsafe_allow_html=True)
     
-    # 성적 확인 탭
-    with tab2:
-        st.subheader("📊 내 성적")
+    with tabs[1]: # 내 성적 탭
+        st.subheader("내 성적")
         
-        # 현재 학생의 답안만 필터링
+        # 학생의 답안 기록 필터링
         student_answers = st.session_state.answers_df[
             st.session_state.answers_df['학생ID'] == st.session_state.user_data['username']
         ]
         
-        if not student_answers.empty:
-            # 평균 점수 계산
-            avg_score = student_answers['점수'].mean()
-            
-            # 통계 표시
-            st.metric("평균 점수", f"{avg_score:.1f}점")
-            st.metric("제출한 문제 수", f"{len(student_answers)}개")
-            
-            # 문제별 점수 표시
-            st.subheader("문제별 점수")
-            display_df = student_answers[['문제ID', '제출답안', '점수', '피드백', '제출시간']]
-            st.dataframe(display_df)
+        if len(student_answers) == 0:
+            st.info("아직 풀이한 문제가 없습니다. 문제를 풀어보세요!")
         else:
-            st.info("아직 제출한 문제가 없습니다.")
+            # 성적 요약
+            avg_score = student_answers['점수'].mean()
+            answered_count = len(student_answers)
+            correct_count = len(student_answers[student_answers['점수'] == 100])
+            
+            col1, col2, col3 = st.columns(3)
+            col1.metric("푼 문제 수", answered_count)
+            col2.metric("맞은 문제 수", correct_count)
+            col3.metric("평균 점수", f"{avg_score:.1f}")
+            
+            # 답안 기록 표
+            st.markdown("### 답안 기록")
+            
+            for _, answer in student_answers.iterrows():
+                problem_id = answer['문제ID']
+                problem = st.session_state.problems_df[st.session_state.problems_df['문제ID'] == problem_id].iloc[0]
+                
+                with st.expander(f"{problem['문제내용']} - {answer['제출시간']}"):
+                    st.markdown(f"**제출 답안:** {answer['제출답안']}")
+                    st.markdown(f"**정답:** {problem['정답']}")
+                    st.markdown(f"**점수:** {answer['점수']}")
+                    st.markdown(f"**피드백:** {answer['피드백']}")
+
+# 답안 기록 함수
+def _record_answer(problem_id, answer, score, feedback):
+    new_answer = {
+        '학생ID': st.session_state.user_data['username'],
+        '이름': st.session_state.user_data['name'],
+        '학년': st.session_state.user_data['grade'],
+        '문제ID': problem_id,
+        '제출답안': answer,
+        '점수': score,
+        '피드백': feedback,
+        '제출시간': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    # 답안 DataFrame에 추가
+    st.session_state.answers_df = pd.concat([
+        st.session_state.answers_df, 
+        pd.DataFrame([new_answer])
+    ], ignore_index=True)
+                
 
 # 로그인 화면
 def login():
