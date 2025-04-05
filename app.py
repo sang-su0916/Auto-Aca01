@@ -5,14 +5,11 @@ from datetime import datetime
 import time
 import os
 import json
+from dotenv import load_dotenv
+from pathlib import Path
 
-# Google Sheets API 임포트 오류 처리
-try:
-    from sheets.google_sheets import GoogleSheetsAPI
-    GOOGLE_SHEETS_AVAILABLE = True
-except ImportError:
-    GOOGLE_SHEETS_AVAILABLE = False
-    st.error("Google Sheets API 관련 패키지가 설치되지 않았습니다. 로컬 모드로 실행합니다.")
+# 환경 변수 로드
+load_dotenv()
 
 # 페이지 설정
 st.set_page_config(
@@ -32,7 +29,7 @@ if 'authenticated' not in st.session_state or not st.session_state.authenticated
 
 # 사용자 정보
 USER_DB = {
-    "admin": {"password": "1234", "name": "관리자", "role": "teacher", "grade": ""},
+    "admin": {"password": "1234", "name": "관리자", "role": "teacher", "grade": "선생님"},
     "student1": {"password": "1234", "name": "홍길동", "role": "student", "grade": "중3"},
     "student2": {"password": "1234", "name": "김철수", "role": "student", "grade": "중2"},
     "student3": {"password": "1234", "name": "박영희", "role": "student", "grade": "중1"}
@@ -41,16 +38,20 @@ USER_DB = {
 # 세션 상태 초기화
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
-if 'user_data' not in st.session_state:
-    st.session_state.user_data = None
+if 'username' not in st.session_state:
+    st.session_state.username = ""
+if 'name' not in st.session_state:
+    st.session_state.name = ""
+if 'role' not in st.session_state:
+    st.session_state.role = ""
+if 'grade' not in st.session_state:
+    st.session_state.grade = ""
+if 'problems' not in st.session_state:
+    st.session_state.problems = []
+if 'student_answers' not in st.session_state:
+    st.session_state.student_answers = []
 if 'current_problem_index' not in st.session_state:
     st.session_state.current_problem_index = 0
-if 'problems' not in st.session_state:
-    st.session_state.problems = None
-if 'student_answers' not in st.session_state:
-    st.session_state.student_answers = None
-if 'sidebar_state' not in st.session_state:
-    st.session_state.sidebar_state = "collapsed"
 
 # 파일 경로
 PROBLEMS_CSV = "sample_questions.csv"
@@ -114,17 +115,40 @@ def initialize_csv_files():
 def load_data():
     initialize_csv_files()
     
-    # Google Sheets API 사용 가능 여부 확인
+    # 구글 시트 API 연동 시도
+    try:
+        from sheets.google_sheets import GoogleSheetsAPI
+        # API 초기화 시도
+        try:
+            sheets_api = GoogleSheetsAPI()
+            GOOGLE_SHEETS_AVAILABLE = True
+            st.session_state.sheets_api = sheets_api  # 세션에 API 객체 저장
+            st.success("Google Sheets에서 문제를 가져오고 있습니다. 기본 문제를 생성합니다.")
+        except Exception as e:
+            st.warning(f"Google Sheets API 연결 실패: {str(e)}")
+            GOOGLE_SHEETS_AVAILABLE = False
+    except ImportError as e:
+        st.warning("Google API 패키지가 설치되지 않았습니다. 로컬 모드로 실행됩니다.")
+        GOOGLE_SHEETS_AVAILABLE = False
+    
     if GOOGLE_SHEETS_AVAILABLE and os.path.exists('credentials.json') and 'GOOGLE_SHEETS_SPREADSHEET_ID' in os.environ:
         try:
             sheets_api = GoogleSheetsAPI()
-            # 문제 데이터 로드
-            problems = sheets_api.get_problems()
-            st.session_state.problems = problems
             
             # 학생 답변 데이터 로드
             student_answers = sheets_api.get_student_answers()
             st.session_state.student_answers = student_answers
+            
+            # 사용자 역할과 학년에 따라 오늘의 문제 로드
+            if st.session_state.role == 'student':
+                # 학생인 경우 해당 학년의 오늘 문제만 가져오기
+                daily_problems = sheets_api.get_daily_problems(grade=st.session_state.grade)
+                st.session_state.problems = daily_problems
+                st.success(f"오늘의 {st.session_state.grade} 문제 {len(daily_problems)}개를 가져왔습니다.")
+            else:
+                # 교사인 경우 모든 문제 가져오기
+                problems = sheets_api.get_problems()
+                st.session_state.problems = problems
             
             return True
         except Exception as e:
@@ -231,12 +255,10 @@ def save_to_local_csv(new_answer):
 def authenticate_user(username, password):
     if username in USER_DB and USER_DB[username]["password"] == password:
         st.session_state.authenticated = True
-        st.session_state.user_data = {
-            "username": username,
-            "name": USER_DB[username]["name"],
-            "role": USER_DB[username]["role"],
-            "grade": USER_DB[username]["grade"]
-        }
+        st.session_state.username = username
+        st.session_state.name = USER_DB[username]["name"]
+        st.session_state.role = USER_DB[username]["role"]
+        st.session_state.grade = USER_DB[username]["grade"]
         load_data()  # 데이터 로드
         return True
     return False
@@ -244,8 +266,12 @@ def authenticate_user(username, password):
 # 로그아웃 함수
 def logout():
     st.session_state.authenticated = False
-    st.session_state.user_data = None
-    st.session_state.current_problem_index = 0
+    st.session_state.username = ""
+    st.session_state.name = ""
+    st.session_state.role = ""
+    st.session_state.grade = ""
+    st.session_state.problems = []
+    st.session_state.student_answers = []
 
 # 다음 문제 버튼 핸들러
 def next_problem():
@@ -261,7 +287,7 @@ def prev_problem():
 def teacher_dashboard():
     st.title("👨‍🏫 교사 대시보드")
     
-    tab1, tab2, tab3 = st.tabs(["문제 관리", "학생 답안 확인", "통계 분석"])
+    tab1, tab2, tab3, tab4 = st.tabs(["문제 관리", "일일/주간 문제", "학생 답안 확인", "통계 분석"])
     
     with tab1:
         st.header("문제 관리")
@@ -334,6 +360,74 @@ def teacher_dashboard():
                     st.success("새 문제가 등록되었습니다!")
     
     with tab2:
+        st.header("일일/주간 문제 관리")
+        
+        # 구글 시트 연동 확인
+        if hasattr(st.session_state, 'sheets_api'):
+            subtab1, subtab2 = st.tabs(["오늘의 문제", "주간 계획"])
+            
+            with subtab1:
+                st.subheader("오늘의 문제 확인")
+                
+                grade_filter = st.selectbox(
+                    "학년 선택",
+                    ["전체", "중1", "중2", "중3", "고1", "고2", "고3"],
+                    key="daily_grade_select"
+                )
+                
+                selected_grade = None if grade_filter == "전체" else grade_filter
+                
+                # 오늘의 문제 가져오기
+                if st.button("오늘의 문제 확인하기"):
+                    daily_problems = st.session_state.sheets_api.get_daily_problems(grade=selected_grade)
+                    if daily_problems:
+                        st.success(f"오늘의 {selected_grade if selected_grade else '전체'} 문제 {len(daily_problems)}개를 가져왔습니다.")
+                        st.dataframe(pd.DataFrame(daily_problems))
+                    else:
+                        st.warning(f"{selected_grade if selected_grade else '전체'} 학년에 해당하는 문제가 없습니다.")
+            
+            with subtab2:
+                st.subheader("주간 문제 계획")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    plan_grade = st.selectbox(
+                        "학년 선택",
+                        ["전체", "중1", "중2", "중3", "고1", "고2", "고3"],
+                        key="weekly_grade_select"
+                    )
+                with col2:
+                    days_count = st.slider("계획할 일수", min_value=1, max_value=14, value=7)
+                
+                selected_plan_grade = None if plan_grade == "전체" else plan_grade
+                
+                # 주간 계획 생성하기
+                if st.button("주간 계획 생성하기"):
+                    weekly_problems = st.session_state.sheets_api.get_weekly_problems(
+                        grade=selected_plan_grade, 
+                        problems_per_day=20,
+                        days=days_count
+                    )
+                    
+                    if weekly_problems:
+                        st.success(f"{days_count}일간의 문제 계획이 생성되었습니다.")
+                        
+                        # 각 날짜별로 탭 생성
+                        date_tabs = st.tabs(list(weekly_problems.keys()))
+                        
+                        for i, date in enumerate(weekly_problems.keys()):
+                            with date_tabs[i]:
+                                st.write(f"**{date}의 문제 ({len(weekly_problems[date])}개)**")
+                                
+                                # 해당 날짜의 문제 표시
+                                date_problems_df = pd.DataFrame(weekly_problems[date])
+                                st.dataframe(date_problems_df)
+                    else:
+                        st.warning("주간 계획을 생성할 수 없습니다.")
+        else:
+            st.warning("이 기능을 사용하려면 Google Sheets API 연동이 필요합니다.")
+    
+    with tab3:
         st.header("학생 답안 확인")
         
         # 학생 답변 목록 표시
@@ -343,7 +437,7 @@ def teacher_dashboard():
         else:
             st.info("제출된 학생 답안이 없습니다.")
     
-    with tab3:
+    with tab4:
         st.header("통계 분석")
         
         if st.session_state.student_answers:
@@ -383,20 +477,45 @@ def save_problem_to_local_csv(new_problem):
 def student_portal():
     st.title("👨‍🎓 학생 포털")
     
-    user_data = st.session_state.user_data
-    st.write(f"안녕하세요, {user_data['name']}님 ({user_data['grade']})")
+    st.write(f"안녕하세요, {st.session_state.name}님 ({st.session_state.grade})")
     
-    # 문제 풀기
-    st.header("📝 문제 풀기")
+    # 오늘의 문제 표시
+    today = datetime.now().strftime('%Y-%m-%d')
+    st.header(f"📝 {today} 오늘의 문제")
     
-    # 문제가 있는지 확인
+    # 문제 데이터 확인 및 새로 가져오기
     if not st.session_state.problems:
-        st.warning("등록된 문제가 없습니다.")
-        return
+        if hasattr(st.session_state, 'sheets_api'):
+            # 학생 학년에 맞는 오늘의 문제 20개 가져오기
+            daily_problems = st.session_state.sheets_api.get_daily_problems(grade=st.session_state.grade)
+            if daily_problems:
+                st.session_state.problems = daily_problems
+                st.success(f"오늘의 {st.session_state.grade} 문제 {len(daily_problems)}개를 가져왔습니다.")
+            else:
+                st.warning("오늘의 문제를 가져올 수 없습니다.")
+                return
+        else:
+            st.warning("등록된 문제가 없습니다.")
+            return
+    
+    # 문제 필터링 (학생 학년에 맞는 문제만)
+    if hasattr(st.session_state, 'sheets_api') and st.session_state.grade:
+        filtered_problems = [p for p in st.session_state.problems if p.get('학년', '') == st.session_state.grade]
+        if filtered_problems:
+            st.session_state.problems = filtered_problems
     
     # 현재 문제 인덱스
     current_index = st.session_state.current_problem_index
     total_problems = len(st.session_state.problems)
+    
+    # 현재 문제가 유효한지 확인
+    if current_index >= total_problems:
+        st.session_state.current_problem_index = 0
+        current_index = 0
+    
+    # 문제 진행률 표시
+    st.progress((current_index + 1) / total_problems)
+    st.write(f"문제 {current_index + 1}/{total_problems}")
     
     # 현재 문제 표시
     problem = st.session_state.problems[current_index]
@@ -409,7 +528,7 @@ def student_portal():
     
     if st.session_state.student_answers:
         for ans in st.session_state.student_answers:
-            if (ans['학생ID'] == user_data['username'] and 
+            if (ans['학생ID'] == st.session_state.username and 
                 ans['문제ID'] == problem['문제ID']):
                 already_answered = True
                 previous_answer = ans['제출답안']
@@ -483,9 +602,9 @@ def student_portal():
             
             # 답안 저장
             save_student_answer(
-                user_data['username'],
-                user_data['name'],
-                user_data['grade'],
+                st.session_state.username,
+                st.session_state.name,
+                st.session_state.grade,
                 problem['문제ID'],
                 user_answer,
                 grading_result['score'],
@@ -522,7 +641,7 @@ def student_portal():
     
     if st.session_state.student_answers:
         my_answers = [ans for ans in st.session_state.student_answers 
-                    if ans['학생ID'] == user_data['username']]
+                    if ans['학생ID'] == st.session_state.username]
         
         if my_answers:
             my_answers_df = pd.DataFrame(my_answers)
@@ -580,8 +699,8 @@ def main():
     # 사이드바
     if st.session_state.authenticated:
         with st.sidebar:
-            st.write(f"👤 {st.session_state.user_data['name']}")
-            st.write(f"역할: {st.session_state.user_data['role']}")
+            st.write(f"👤 {st.session_state.name}")
+            st.write(f"역할: {st.session_state.role}")
             
             if st.button("로그아웃"):
                 logout()
@@ -591,7 +710,7 @@ def main():
     if not st.session_state.authenticated:
         login()
     else:
-        if st.session_state.user_data["role"] == "teacher":
+        if st.session_state.role == "teacher":
             teacher_dashboard()
         else:
             student_portal()

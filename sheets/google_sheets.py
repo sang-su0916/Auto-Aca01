@@ -1,8 +1,10 @@
 import os
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
+import random
+from typing import List, Any
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -429,4 +431,102 @@ class GoogleSheetsAPI:
                     "correct_ratio": 0.9
                 }
             ]
-        } 
+        }
+
+    def get_daily_problems(self, grade=None, count=20):
+        """오늘 날짜에 해당하는 문제를 가져옵니다.
+        
+        Args:
+            grade (str, optional): 학년 필터링 (중1, 중2, 중3 등)
+            count (int, optional): 가져올 문제 수 (기본값: 20)
+            
+        Returns:
+            list: 오늘의 문제 목록
+        """
+        try:
+            # 모든 문제 가져오기
+            all_problems = self.get_problems()
+            
+            if not all_problems:
+                logger.warning("문제가 없습니다.")
+                return []
+            
+            # 학년 필터링
+            if grade:
+                filtered_problems = [p for p in all_problems if p.get('학년', '') == grade]
+            else:
+                filtered_problems = all_problems
+            
+            if not filtered_problems:
+                logger.warning(f"{grade} 학년 문제가 없습니다.")
+                return []
+            
+            # 날짜를 기준으로 랜덤 시드 설정 (매일 같은 결과가 나오도록)
+            today = datetime.now().strftime('%Y-%m-%d')
+            random.seed(f"{today}_{grade if grade else 'all'}")
+            
+            # 랜덤으로 문제 선택 (중복 없이)
+            if len(filtered_problems) <= count:
+                # 문제 수가 요청한 개수보다 적거나 같으면 모든 문제 반환
+                daily_problems = filtered_problems
+            else:
+                # 충분한 문제가 있으면 랜덤으로 선택
+                daily_problems = random.sample(filtered_problems, count)
+            
+            # 순서 섞기
+            random.shuffle(daily_problems)
+            
+            logger.info(f"오늘({today})의 {grade if grade else '전체'} 문제 {len(daily_problems)}개를 가져왔습니다.")
+            return daily_problems
+            
+        except Exception as e:
+            logger.error(f"일일 문제 가져오기 중 오류 발생: {str(e)}")
+            return []
+    
+    def get_weekly_problems(self, grade=None, problems_per_day=20, days=7):
+        """주간 문제 계획을 생성합니다.
+        
+        Args:
+            grade (str, optional): 학년 필터링
+            problems_per_day (int, optional): 하루당 문제 수
+            days (int, optional): 계획할 일수
+            
+        Returns:
+            dict: 날짜별 문제 목록
+        """
+        try:
+            weekly_problems = {}
+            
+            # 오늘부터 지정된 일수까지의 문제 생성
+            for day in range(days):
+                # 특정 날짜에 대한 시드 설정
+                target_date = datetime.now() + timedelta(days=day)
+                date_str = target_date.strftime('%Y-%m-%d')
+                
+                # 해당 날짜의 시드로 랜덤 시드 설정
+                random.seed(f"{date_str}_{grade if grade else 'all'}")
+                
+                # 모든 문제 가져오기
+                all_problems = self.get_problems()
+                
+                # 학년 필터링
+                if grade:
+                    filtered_problems = [p for p in all_problems if p.get('학년', '') == grade]
+                else:
+                    filtered_problems = all_problems
+                
+                # 해당 날짜의 문제 선택
+                if len(filtered_problems) <= problems_per_day:
+                    daily_problems = filtered_problems
+                else:
+                    daily_problems = random.sample(filtered_problems, problems_per_day)
+                
+                # 결과에 추가
+                weekly_problems[date_str] = daily_problems
+            
+            logger.info(f"{days}일간의 문제 계획이 생성되었습니다.")
+            return weekly_problems
+            
+        except Exception as e:
+            logger.error(f"주간 문제 계획 생성 중 오류 발생: {str(e)}")
+            return {} 
