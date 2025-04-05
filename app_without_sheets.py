@@ -7,6 +7,8 @@ import time
 import json
 import io
 import csv
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # 페이지 설정 - 사이드바 기본적으로 숨김
 st.set_page_config(
@@ -299,107 +301,149 @@ def logout():
 
 # 교사 대시보드
 def teacher_dashboard():
-    st.title(f"👨‍🏫 교사 대시보드 - {st.session_state.user_data['name']} 선생님")
-    st.write("문제 관리 및 학생 성적 확인")
+    st.title("교사 대시보드")
     
-    tab1, tab2 = st.tabs(["문제 관리", "성적 통계"])
+    # 탭 메뉴
+    tabs = st.tabs(["문제 관리", "학생 관리", "설정", "구글 시트"])
     
-    with tab1:
-        st.subheader("📝 문제 관리")
+    # 문제 관리 탭
+    with tabs[0]:
+        manage_problems()
+    
+    # 학생 관리 탭
+    with tabs[1]:
+        manage_students()
+    
+    # 설정 탭
+    with tabs[2]:
+        manage_settings()
         
-        # 기존 문제 표시
-        problems_df = st.session_state.problems_df
+    # 구글 시트 탭
+    with tabs[3]:
+        st.subheader("구글 시트 연동")
         
-        if not problems_df.empty:
-            st.dataframe(problems_df)
-            st.success(f"총 {len(problems_df)}개의 문제가 등록되어 있습니다.")
-        else:
-            st.info("현재 등록된 문제가 없습니다.")
+        st.markdown("""
+        ### 📊 구글 시트로 문제 관리하기
         
-        # 문제 추가 폼
-        st.subheader("📝 문제 직접 추가")
-        with st.form("add_problem_form"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                problem_id = st.text_input("문제ID", value="P" + datetime.now().strftime("%Y%m%d%H%M%S"))
-                subject = st.selectbox("과목", ["영어", "수학", "국어", "과학", "사회"])
-            with col2:
-                grade = st.selectbox("학년", ["중1", "중2", "중3", "고1", "고2", "고3"])
-                problem_type = st.selectbox("문제유형", ["객관식", "주관식"])
-            with col3:
-                difficulty = st.selectbox("난이도", ["상", "중", "하"])
+        구글 시트를 연동하면 외부에서도 쉽게 문제를 관리할 수 있습니다.
+        """)
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            sheet_id = st.text_input("Google Sheets ID 입력", 
+                           help="스프레드시트 URL에서 /d/ 다음과 /edit 사이에 있는 ID를 입력하세요.")
             
-            problem_content = st.text_area("문제 내용", placeholder="문제 내용을 입력하세요.")
+        with col2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            connect_button = st.button("시트 연결하기", use_container_width=True)
+        
+        if connect_button and sheet_id:
+            share_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit?usp=sharing"
             
-            if problem_type == "객관식":
-                col1, col2 = st.columns(2)
-                with col1:
-                    option1 = st.text_input("보기1")
-                    option2 = st.text_input("보기2")
-                    option3 = st.text_input("보기3")
-                with col2:
-                    option4 = st.text_input("보기4")
-                    option5 = st.text_input("보기5", help="선택 사항")
-            else:
-                option1 = option2 = option3 = option4 = option5 = ""
-            
-            correct_answer = st.text_input("정답")
-            keywords = st.text_input("키워드 (쉼표로 구분)", help="주관식 문제의 부분 점수 계산에 사용됩니다.")
-            explanation = st.text_area("해설", placeholder="문제 해설을 입력하세요.")
-            
-            submit_button = st.form_submit_button("문제 추가")
-            
-            if submit_button and problem_content and correct_answer:
-                new_problem = {
-                    '문제ID': problem_id,
-                    '과목': subject,
-                    '학년': grade,
-                    '문제유형': problem_type,
-                    '난이도': difficulty,
-                    '문제내용': problem_content,
-                    '보기1': option1,
-                    '보기2': option2,
-                    '보기3': option3,
-                    '보기4': option4,
-                    '보기5': option5,
-                    '정답': correct_answer,
-                    '키워드': keywords,
-                    '해설': explanation
-                }
+            # 연결 시도
+            try:
+                # 사용할 구글 API 범위
+                scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
                 
-                st.session_state.problems_df = pd.concat([st.session_state.problems_df, pd.DataFrame([new_problem])], ignore_index=True)
-                save_data()  # 데이터 저장
-                st.success("문제가 추가되었습니다.")
-                st.rerun()
-    
-    with tab2:
-        st.subheader("📊 학생 성적 통계")
+                # 서비스 계정 키 파일 경로
+                credentials_path = 'credentials.json'
+                
+                if not os.path.exists(credentials_path):
+                    st.warning("Google Sheets 연동을 위한 credentials.json 파일이 필요합니다.")
+                    st.info("1. Google Cloud Console에서 서비스 계정을 생성하고 JSON 키를 다운로드하세요.")
+                    st.info("2. 다운로드한 키 파일을 'credentials.json'으로 이름을 변경하고 앱 폴더에 저장하세요.")
+                    st.info("3. 공유하려는 Google 스프레드시트에서 서비스 계정 이메일을 공유 권한에 추가하세요.")
+                else:
+                    # 자격 증명 및 클라이언트 생성
+                    credentials = ServiceAccountCredentials.from_json_keyfile_name(credentials_path, scope)
+                    client = gspread.authorize(credentials)
+                    
+                    # 스프레드시트 열기 시도
+                    spreadsheet = client.open_by_key(sheet_id)
+                    
+                    # 시트에 접근 가능하면 성공 메시지와 공유 링크 표시
+                    st.success("구글 시트 연결 성공!")
+                    
+                    st.markdown(f"""
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                        <h4>📋 구글 시트 공유 링크</h4>
+                        <p><a href="{share_url}" target="_blank">{share_url}</a></p>
+                        <p style="font-size: 0.9em;">이 링크를 다른 교사나 관리자와 공유하세요.</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # 시트 데이터 로드 버튼
+                    if st.button("시트 데이터 불러오기", use_container_width=True):
+                        sheets_data = load_from_google_sheets()
+                        if sheets_data is not None:
+                            st.session_state.problems_df = sheets_data
+                            save_data()  # 로컬에도 저장
+                            st.success(f"Google Sheets에서 {len(sheets_data)}개의 문제를 성공적으로 불러왔습니다!")
+            
+            except Exception as e:
+                st.error(f"구글 시트 연결 오류: {str(e)}")
+                st.info("시트 ID가 올바른지, 해당 시트에 접근 권한이 있는지 확인하세요.")
+                
+        # 새 시트 만들기 섹션
+        st.markdown("---")
+        st.subheader("새 구글 시트 만들기")
         
-        answers_df = st.session_state.answers_df
+        st.markdown("""
+        기존 문제 데이터로 새 구글 스프레드시트를 생성할 수 있습니다.
+        이 기능을 사용하려면 credentials.json 파일과 Google Drive API 권한이 필요합니다.
+        """)
         
-        if not answers_df.empty:
-            st.dataframe(answers_df)
+        if st.button("현재 문제로 새 시트 만들기", use_container_width=True):
+            # 사용할 구글 API 범위
+            scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
             
-            # 학생별 평균 점수
-            student_scores = answers_df.groupby(['학생ID', '이름', '학년'])['점수'].agg(['mean', 'count']).reset_index()
-            student_scores.columns = ['학생ID', '이름', '학년', '평균점수', '제출수']
-            student_scores['평균점수'] = student_scores['평균점수'].round(2)
+            # 서비스 계정 키 파일 경로
+            credentials_path = 'credentials.json'
             
-            st.subheader("학생별 성적")
-            st.dataframe(student_scores)
-            
-            # 문제별 정답률
-            problem_stats = answers_df.groupby('문제ID').agg({
-                '점수': ['mean', 'count']
-            }).reset_index()
-            problem_stats.columns = ['문제ID', '평균점수', '응시수']
-            problem_stats['평균점수'] = problem_stats['평균점수'].round(2)
-            
-            st.subheader("문제별 정답률")
-            st.dataframe(problem_stats)
-            
-        else:
-            st.info("아직 제출된 답안이 없습니다.")
+            if not os.path.exists(credentials_path):
+                st.warning("Google Sheets 연동을 위한 credentials.json 파일이 필요합니다.")
+                st.info("1. Google Cloud Console에서 서비스 계정을 생성하고 JSON 키를 다운로드하세요.")
+                st.info("2. 다운로드한 키 파일을 'credentials.json'으로 이름을 변경하고 앱 폴더에 저장하세요.")
+            else:
+                try:
+                    # 자격 증명 및 클라이언트 생성
+                    credentials = ServiceAccountCredentials.from_json_keyfile_name(credentials_path, scope)
+                    client = gspread.authorize(credentials)
+                    
+                    # 새 스프레드시트 생성
+                    spreadsheet = client.create(f"학원 자동 첨삭 시스템 - {datetime.now().strftime('%Y-%m-%d')}")
+                    
+                    # 첫 번째 시트 선택
+                    worksheet = spreadsheet.get_worksheet(0)
+                    
+                    # 현재 문제 데이터 가져오기
+                    if 'problems_df' in st.session_state and not st.session_state.problems_df.empty:
+                        # 데이터프레임을 리스트로 변환
+                        problems_data = [st.session_state.problems_df.columns.tolist()] + st.session_state.problems_df.values.tolist()
+                        
+                        # 시트에 데이터 추가
+                        worksheet.update(problems_data)
+                        
+                        # 생성된 시트 공유 링크
+                        share_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet.id}/edit?usp=sharing"
+                        
+                        st.success("새 구글 시트가 성공적으로 생성되었습니다!")
+                        
+                        st.markdown(f"""
+                        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                            <h4>📋 새 구글 시트 공유 링크</h4>
+                            <p><a href="{share_url}" target="_blank">{share_url}</a></p>
+                            <p style="font-size: 0.9em;">이 링크를 다른 교사나 관리자와 공유하세요.</p>
+                            <p style="font-size: 0.8em; color: #666;">주의: 서비스 계정으로 생성된 파일은 기본적으로 서비스 계정만 접근 가능합니다. 공유 설정에서 다른 사용자에게 권한을 부여하세요.</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.warning("문제 데이터가 없습니다. 먼저 문제를 생성하거나 가져오세요.")
+                
+                except Exception as e:
+                    st.error(f"구글 시트 생성 오류: {str(e)}")
+                    st.info("Google Drive API가 활성화되어 있는지, 서비스 계정에 적절한 권한이 있는지 확인하세요.")
 
 # 학생 포털
 def student_portal():
@@ -562,6 +606,252 @@ def login_screen():
         """)
         st.markdown("</div>", unsafe_allow_html=True)
 
+# 구글 시트 연동 함수
+def load_from_google_sheets():
+    try:
+        # 사용할 구글 API 범위
+        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        
+        # 서비스 계정 키 파일 경로
+        credentials_path = 'credentials.json'
+        
+        if not os.path.exists(credentials_path):
+            st.warning("Google Sheets 연동을 위한 credentials.json 파일이 필요합니다.")
+            st.info("1. Google Cloud Console에서 서비스 계정을 생성하고 JSON 키를 다운로드하세요.")
+            st.info("2. 다운로드한 키 파일을 'credentials.json'으로 이름을 변경하고 앱 폴더에 저장하세요.")
+            st.info("3. 공유하려는 Google 스프레드시트에서 서비스 계정 이메일을 공유 권한에 추가하세요.")
+            return None
+        
+        # 자격 증명 및 클라이언트 생성
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(credentials_path, scope)
+        client = gspread.authorize(credentials)
+        
+        # 스프레드시트 열기 (문제 데이터)
+        sheet_url = st.secrets.get("google_sheets_url", "") if hasattr(st, "secrets") else ""
+        sheet_id = ""
+        
+        if not sheet_url:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                sheet_id = st.text_input("Google Sheets ID 입력", 
+                                        help="스프레드시트 URL에서 /d/ 다음과 /edit 사이에 있는 ID를 입력하세요.")
+            with col2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("연결하기", use_container_width=True):
+                    if not sheet_id:
+                        st.error("Google Sheets ID를 입력해주세요.")
+                        return None
+                else:
+                    return None
+        else:
+            # URL에서 스프레드시트 ID 추출
+            if '/d/' in sheet_url and '/edit' in sheet_url:
+                sheet_id = sheet_url.split('/d/')[1].split('/edit')[0]
+        
+        spreadsheet = client.open_by_key(sheet_id)
+        
+        # 첫 번째 시트 선택 (문제 데이터)
+        worksheet = spreadsheet.get_worksheet(0)
+        
+        # 데이터 가져오기
+        data = worksheet.get_all_records()
+        
+        if data:
+            problems_df = pd.DataFrame(data)
+            st.success(f"Google Sheets에서 {len(problems_df)}개의 문제를 가져왔습니다.")
+            print("구글 시트 모듈 로드 성공!")
+            print(f"Google Sheets에서 {len(problems_df)}개의 문제를 가져왔습니다.")
+            
+            # 구글 스프레드시트 공유 링크 표시
+            share_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit?usp=sharing"
+            st.markdown(f"""
+            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                <p><strong>📋 Google Sheets 공유 링크:</strong></p>
+                <p><a href="{share_url}" target="_blank">{share_url}</a></p>
+                <p style="font-size: 0.8em;">이 링크를 다른 사람과 공유하면 같은 스프레드시트에 접근할 수 있습니다.</p>
+                <p style="font-size: 0.8em;">스프레드시트 권한 설정에서 공유 옵션을 변경할 수 있습니다.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            return problems_df
+        else:
+            st.error("Google Sheets에서 데이터를 가져오지 못했습니다.")
+            return None
+            
+    except Exception as e:
+        st.error(f"Google Sheets 연동 오류: {str(e)}")
+        return None
+
+# 문제 관리 함수
+def manage_problems():
+    st.subheader("📝 문제 관리")
+    
+    # 기존 문제 표시
+    problems_df = st.session_state.problems_df
+    
+    if not problems_df.empty:
+        st.dataframe(problems_df)
+        st.success(f"총 {len(problems_df)}개의 문제가 등록되어 있습니다.")
+    else:
+        st.info("현재 등록된 문제가 없습니다.")
+    
+    # 문제 추가 폼
+    st.subheader("📝 문제 직접 추가")
+    with st.form("add_problem_form"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            problem_id = st.text_input("문제ID", value="P" + datetime.now().strftime("%Y%m%d%H%M%S"))
+            subject = st.selectbox("과목", ["영어", "수학", "국어", "과학", "사회"])
+        with col2:
+            grade = st.selectbox("학년", ["중1", "중2", "중3", "고1", "고2", "고3"])
+            problem_type = st.selectbox("문제유형", ["객관식", "주관식"])
+        with col3:
+            difficulty = st.selectbox("난이도", ["상", "중", "하"])
+        
+        problem_content = st.text_area("문제 내용", placeholder="문제 내용을 입력하세요.")
+        
+        if problem_type == "객관식":
+            col1, col2 = st.columns(2)
+            with col1:
+                option1 = st.text_input("보기1")
+                option2 = st.text_input("보기2")
+                option3 = st.text_input("보기3")
+            with col2:
+                option4 = st.text_input("보기4")
+                option5 = st.text_input("보기5", help="선택 사항")
+        else:
+            option1 = option2 = option3 = option4 = option5 = ""
+        
+        correct_answer = st.text_input("정답")
+        keywords = st.text_input("키워드 (쉼표로 구분)", help="주관식 문제의 부분 점수 계산에 사용됩니다.")
+        explanation = st.text_area("해설", placeholder="문제 해설을 입력하세요.")
+        
+        submit_button = st.form_submit_button("문제 추가")
+        
+        if submit_button and problem_content and correct_answer:
+            new_problem = {
+                '문제ID': problem_id,
+                '과목': subject,
+                '학년': grade,
+                '문제유형': problem_type,
+                '난이도': difficulty,
+                '문제내용': problem_content,
+                '보기1': option1,
+                '보기2': option2,
+                '보기3': option3,
+                '보기4': option4,
+                '보기5': option5,
+                '정답': correct_answer,
+                '키워드': keywords,
+                '해설': explanation
+            }
+            
+            st.session_state.problems_df = pd.concat([st.session_state.problems_df, pd.DataFrame([new_problem])], ignore_index=True)
+            save_data()  # 데이터 저장
+            st.success("문제가 추가되었습니다.")
+            st.rerun()
+
+# 학생 관리 함수
+def manage_students():
+    st.subheader("👨‍🎓 학생 관리")
+    
+    # 학생 성적 통계 표시
+    answers_df = st.session_state.answers_df
+    
+    if not answers_df.empty:
+        st.dataframe(answers_df)
+        
+        # 학생별 평균 점수
+        student_scores = answers_df.groupby(['학생ID', '이름', '학년'])['점수'].agg(['mean', 'count']).reset_index()
+        student_scores.columns = ['학생ID', '이름', '학년', '평균점수', '제출수']
+        student_scores['평균점수'] = student_scores['평균점수'].round(2)
+        
+        st.subheader("학생별 성적")
+        st.dataframe(student_scores)
+        
+        # 문제별 정답률
+        problem_stats = answers_df.groupby('문제ID').agg({
+            '점수': ['mean', 'count']
+        }).reset_index()
+        problem_stats.columns = ['문제ID', '평균점수', '응시수']
+        problem_stats['평균점수'] = problem_stats['평균점수'].round(2)
+        
+        st.subheader("문제별 정답률")
+        st.dataframe(problem_stats)
+        
+    else:
+        st.info("아직 제출된 답안이 없습니다.")
+
+# 설정 관리 함수
+def manage_settings():
+    st.subheader("⚙️ 설정")
+    
+    st.write("시스템 설정을 관리합니다.")
+    
+    # 일반 설정
+    st.subheader("일반 설정")
+    
+    # 시스템 이름 설정
+    system_name = st.text_input("시스템 이름", value="학원 자동 첨삭 시스템", help="로그인 화면과 타이틀에 표시될 시스템 이름입니다.")
+    
+    # 백업 설정
+    st.subheader("데이터 백업")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("데이터 백업하기", use_container_width=True):
+            try:
+                # 현재 데이터를 백업
+                backup_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                
+                # 백업 폴더가 없으면 생성
+                backup_dir = "backups"
+                if not os.path.exists(backup_dir):
+                    os.makedirs(backup_dir)
+                
+                # 문제 데이터 백업
+                if 'problems_df' in st.session_state and not st.session_state.problems_df.empty:
+                    problems_backup_file = f"{backup_dir}/problems_{backup_timestamp}.csv"
+                    st.session_state.problems_df.to_csv(problems_backup_file, index=False)
+                
+                # 답안 데이터 백업
+                if 'answers_df' in st.session_state and not st.session_state.answers_df.empty:
+                    answers_backup_file = f"{backup_dir}/answers_{backup_timestamp}.csv"
+                    st.session_state.answers_df.to_csv(answers_backup_file, index=False)
+                
+                # 사용자 데이터 백업
+                if 'users_df' in st.session_state and not st.session_state.users_df.empty:
+                    users_backup_file = f"{backup_dir}/users_{backup_timestamp}.csv"
+                    st.session_state.users_df.to_csv(users_backup_file, index=False)
+                
+                st.success(f"데이터가 성공적으로 백업되었습니다. (백업 ID: {backup_timestamp})")
+            
+            except Exception as e:
+                st.error(f"백업 중 오류가 발생했습니다: {str(e)}")
+    
+    with col2:
+        if st.button("백업 목록 확인", use_container_width=True):
+            backup_dir = "backups"
+            if not os.path.exists(backup_dir):
+                st.info("백업 폴더가 없습니다.")
+            else:
+                backup_files = [f for f in os.listdir(backup_dir) if f.endswith('.csv')]
+                if backup_files:
+                    # 백업 파일을 날짜별로 그룹화
+                    backup_groups = {}
+                    for file in backup_files:
+                        timestamp = file.split('_')[1].split('.')[0]
+                        if timestamp not in backup_groups:
+                            backup_groups[timestamp] = []
+                        backup_groups[timestamp].append(file)
+                    
+                    st.write("백업 목록:")
+                    for timestamp, files in backup_groups.items():
+                        st.write(f"- 백업 ID: {timestamp} ({len(files)}개 파일)")
+                else:
+                    st.info("백업 파일이 없습니다.")
+
 # 메인 앱 로직
 def main():
     # 사이드바 - 로그인 정보 및 로그아웃 버튼
@@ -574,6 +864,22 @@ def main():
                 st.write(f"학년: {st.session_state.user_data['grade']}")
             
             st.markdown("<hr>", unsafe_allow_html=True)
+            
+            # 구글 시트 연동 옵션 (교사만 가능)
+            if st.session_state.user_data['role'] == 'teacher':
+                st.markdown("<hr>", unsafe_allow_html=True)
+                st.subheader("데이터 소스 관리")
+                use_google_sheets = st.checkbox("Google Sheets 사용", 
+                                              value=False,
+                                              help="체크하면 Google Sheets에서 문제 데이터를 가져옵니다.")
+                
+                if use_google_sheets:
+                    sheets_data = load_from_google_sheets()
+                    if sheets_data is not None:
+                        st.session_state.problems_df = sheets_data
+                        save_data()  # 로컬에도 저장
+                        st.success("Google Sheets 데이터를 성공적으로 로드했습니다!")
+            
             if st.button("로그아웃", use_container_width=True):
                 logout()
                 st.rerun()
