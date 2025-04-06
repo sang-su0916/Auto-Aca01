@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os
 import json
 import logging
@@ -5,6 +8,14 @@ from datetime import datetime, timedelta
 import pandas as pd
 import random
 from typing import List, Any
+import traceback
+from dotenv import load_dotenv
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+# .env 파일 로드
+load_dotenv()
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -20,51 +31,280 @@ except ImportError:
     logger.error("Google API 관련 패키지가 설치되지 않았습니다.")
 
 class GoogleSheetsAPI:
-    """구글 시트 API 연동 클래스"""
+    """Google Sheets API 연동 클래스"""
     
     def __init__(self):
-        """API 연동 초기화"""
-        self.SPREADSHEET_ID = os.environ.get('GOOGLE_SHEETS_SPREADSHEET_ID')
-        self.service = None
+        """초기화 및 API 서비스 생성"""
+        # 상수 정의
+        self.credentials_file = 'credentials.json'
+        self.scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         
-        if not GOOGLE_API_AVAILABLE:
-            logger.error("Google API 패키지를 찾을 수 없습니다. 'pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client'를 실행하세요.")
-            raise ImportError("Google API 패키지를 찾을 수 없습니다.")
+        # 스프레드시트 ID
+        self.spreadsheet_id = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID')
         
-        # 환경 변수에서 스프레드시트 ID를 가져올 수 없는 경우 기본값 사용
-        if not self.SPREADSHEET_ID:
-            self.SPREADSHEET_ID = "1ke4Sv6TjOBua-hm-PLayMFHubA1mcJCrg0VVTJzf2d0"
-            logger.info(f"환경 변수에서 스프레드시트 ID를 찾을 수 없어 기본값을 사용합니다: {self.SPREADSHEET_ID}")
-        
-        # credentials.json 파일 확인
-        if not os.path.exists('credentials.json'):
-            logger.error("credentials.json 파일을 찾을 수 없습니다.")
-            raise FileNotFoundError("credentials.json 파일을 찾을 수 없습니다.")
+        # API 서비스 초기화
+        self.service = self._create_service()
+    
+    def _create_service(self):
+        """Google Sheets API 서비스 객체 생성"""
+        try:
+            # 인증 정보 파일 확인
+            if not os.path.exists(self.credentials_file):
+                print(f"오류: {self.credentials_file} 파일을 찾을 수 없습니다.")
+                return None
+
+            # 인증 정보 생성
+            credentials = Credentials.from_service_account_file(
+                self.credentials_file, scopes=self.scopes)
+            
+            # 서비스 객체 생성
+            service = build('sheets', 'v4', credentials=credentials)
+            return service
+        except Exception as e:
+            print(f"Google Sheets API 초기화 오류: {str(e)}")
+            traceback.print_exc()
+            return None
+    
+    def is_connected(self):
+        """API 연결 상태 확인"""
+        return self.service is not None and self.spreadsheet_id is not None
+    
+    def test_connection(self):
+        """연결 테스트"""
+        if not self.is_connected():
+            print("Google Sheets API가 초기화되지 않았습니다.")
+            return False
         
         try:
-            # credentials.json이 유효한 JSON 파일인지 확인
-            with open('credentials.json', 'r') as f:
-                try:
-                    json.load(f)
-                except json.JSONDecodeError:
-                    logger.error("credentials.json 파일이 유효한 JSON 형식이 아닙니다.")
-                    raise ValueError("credentials.json 파일이 유효한 JSON 형식이 아닙니다.")
+            # 스프레드시트 정보 가져오기
+            spreadsheet = self.service.spreadsheets().get(
+                spreadsheetId=self.spreadsheet_id).execute()
             
-            # 서비스 계정 인증 정보 로드
-            SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-            creds = Credentials.from_service_account_file('credentials.json', scopes=SCOPES)
-            self.service = build('sheets', 'v4', credentials=creds)
-            logger.info(f"성공적으로 Google Sheets API에 연결되었습니다. 스프레드시트 ID: {self.SPREADSHEET_ID}")
+            print(f"연결 성공! 스프레드시트 타이틀: '{spreadsheet['properties']['title']}'")
+            return True
         except Exception as e:
-            logger.error(f"Google Sheets API 초기화 중 오류 발생: {str(e)}")
-            raise
+            print(f"연결 테스트 실패: {str(e)}")
+            return False
     
+    def fetch_problems(self, sheet_name='테스트 데이터'):
+        """문제 데이터 가져오기"""
+        if not self.is_connected():
+            print("Google Sheets API가 초기화되지 않았습니다.")
+            return pd.DataFrame()
+        
+        try:
+            # 데이터 가져오기
+            range_name = f'{sheet_name}!A:N'
+            result = self.service.spreadsheets().values().get(
+                spreadsheetId=self.spreadsheet_id,
+                range=range_name
+            ).execute()
+            
+            values = result.get('values', [])
+            if not values:
+                print("스프레드시트에 데이터가 없습니다.")
+                return pd.DataFrame()
+            
+            # 헤더 가져오기
+            headers = values[0]
+            
+            # 데이터 가져오기 (헤더 제외)
+            data = values[1:]
+            
+            # 누락된 필드 채우기
+            for row in data:
+                while len(row) < len(headers):
+                    row.append('')
+            
+            # 데이터프레임 생성
+            df = pd.DataFrame(data, columns=headers)
+            print(f"Google Sheets에서 {len(df)}개의 문제를 가져왔습니다.")
+            return df
+        except HttpError as error:
+            print(f"Google Sheets API 오류: {error}")
+            return pd.DataFrame()
+        except Exception as e:
+            print(f"문제 데이터 가져오기 오류: {str(e)}")
+            traceback.print_exc()
+            return pd.DataFrame()
+    
+    def update_problem(self, problem_id, data, sheet_name='테스트 데이터'):
+        """문제 데이터 업데이트"""
+        if not self.is_connected():
+            print("Google Sheets API가 초기화되지 않았습니다.")
+            return False
+        
+        try:
+            # 현재 데이터 가져오기
+            range_name = f'{sheet_name}!A:N'
+            result = self.service.spreadsheets().values().get(
+                spreadsheetId=self.spreadsheet_id,
+                range=range_name
+            ).execute()
+            
+            values = result.get('values', [])
+            if not values:
+                print("스프레드시트에 데이터가 없습니다.")
+                return False
+            
+            # 헤더 가져오기
+            headers = values[0]
+            
+            # 문제 ID로 행 찾기
+            row_index = -1
+            for i, row in enumerate(values):
+                if i > 0 and row and row[0] == problem_id:
+                    row_index = i
+                    break
+            
+            if row_index == -1:
+                print(f"문제 ID '{problem_id}'를 찾을 수 없습니다.")
+                return False
+            
+            # 업데이트할 행 데이터 준비
+            update_row = []
+            for field in headers:
+                if field in data:
+                    update_row.append(data[field])
+                else:
+                    # 원래 값 유지
+                    original_index = headers.index(field)
+                    update_row.append(values[row_index][original_index] if original_index < len(values[row_index]) else '')
+            
+            # 데이터 업데이트
+            update_range = f'{sheet_name}!A{row_index+1}:{chr(65+len(headers)-1)}{row_index+1}'
+            self.service.spreadsheets().values().update(
+                spreadsheetId=self.spreadsheet_id,
+                range=update_range,
+                valueInputOption='RAW',
+                body={'values': [update_row]}
+            ).execute()
+            
+            print(f"문제 ID '{problem_id}'가 업데이트되었습니다.")
+            return True
+        except Exception as e:
+            print(f"문제 업데이트 오류: {str(e)}")
+            traceback.print_exc()
+            return False
+    
+    def add_problem(self, data, sheet_name='테스트 데이터'):
+        """새 문제 추가"""
+        if not self.is_connected():
+            print("Google Sheets API가 초기화되지 않았습니다.")
+            return False
+        
+        try:
+            # 현재 데이터 가져오기
+            range_name = f'{sheet_name}!A:N'
+            result = self.service.spreadsheets().values().get(
+                spreadsheetId=self.spreadsheet_id,
+                range=range_name
+            ).execute()
+            
+            values = result.get('values', [])
+            if not values:
+                print("스프레드시트에 데이터가 없습니다.")
+                return False
+            
+            # 헤더 가져오기
+            headers = values[0]
+            
+            # 추가할 행 데이터 준비
+            new_row = []
+            for field in headers:
+                new_row.append(data.get(field, ''))
+            
+            # 데이터 추가
+            append_range = f'{sheet_name}!A:N'
+            self.service.spreadsheets().values().append(
+                spreadsheetId=self.spreadsheet_id,
+                range=append_range,
+                valueInputOption='RAW',
+                insertDataOption='INSERT_ROWS',
+                body={'values': [new_row]}
+            ).execute()
+            
+            print(f"새 문제가 추가되었습니다. ID: {data.get('문제ID', '알 수 없음')}")
+            return True
+        except Exception as e:
+            print(f"문제 추가 오류: {str(e)}")
+            traceback.print_exc()
+            return False
+    
+    def delete_problem(self, problem_id, sheet_name='테스트 데이터'):
+        """문제 삭제"""
+        if not self.is_connected():
+            print("Google Sheets API가 초기화되지 않았습니다.")
+            return False
+        
+        try:
+            # 현재 데이터 가져오기
+            range_name = f'{sheet_name}!A:N'
+            result = self.service.spreadsheets().values().get(
+                spreadsheetId=self.spreadsheet_id,
+                range=range_name
+            ).execute()
+            
+            values = result.get('values', [])
+            if not values:
+                print("스프레드시트에 데이터가 없습니다.")
+                return False
+            
+            # 문제 ID로 행 찾기
+            row_index = -1
+            for i, row in enumerate(values):
+                if i > 0 and row and row[0] == problem_id:
+                    row_index = i
+                    break
+            
+            if row_index == -1:
+                print(f"문제 ID '{problem_id}'를 찾을 수 없습니다.")
+                return False
+            
+            # 시트 ID 가져오기
+            spreadsheet = self.service.spreadsheets().get(
+                spreadsheetId=self.spreadsheet_id).execute()
+            sheet_id = None
+            for sheet in spreadsheet['sheets']:
+                if sheet['properties']['title'] == sheet_name:
+                    sheet_id = sheet['properties']['sheetId']
+                    break
+            
+            if sheet_id is None:
+                print(f"시트 '{sheet_name}'을 찾을 수 없습니다.")
+                return False
+            
+            # 행 삭제 요청
+            request = {
+                'deleteDimension': {
+                    'range': {
+                        'sheetId': sheet_id,
+                        'dimension': 'ROWS',
+                        'startIndex': row_index,
+                        'endIndex': row_index + 1
+                    }
+                }
+            }
+            
+            # 요청 실행
+            self.service.spreadsheets().batchUpdate(
+                spreadsheetId=self.spreadsheet_id,
+                body={'requests': [request]}
+            ).execute()
+            
+            print(f"문제 ID '{problem_id}'가 삭제되었습니다.")
+            return True
+        except Exception as e:
+            print(f"문제 삭제 오류: {str(e)}")
+            traceback.print_exc()
+            return False
+
     def get_problems(self):
         """문제 목록 가져오기"""
         try:
             # API 호출하여 problems 시트의 데이터 가져오기
             result = self.service.spreadsheets().values().get(
-                spreadsheetId=self.SPREADSHEET_ID, 
+                spreadsheetId=self.spreadsheet_id, 
                 range='problems!A2:N'
             ).execute()
             
@@ -75,7 +315,7 @@ class GoogleSheetsAPI:
             
             # 열 이름 가져오기
             header_result = self.service.spreadsheets().values().get(
-                spreadsheetId=self.SPREADSHEET_ID, 
+                spreadsheetId=self.spreadsheet_id, 
                 range='problems!A1:N1'
             ).execute()
             
@@ -113,7 +353,7 @@ class GoogleSheetsAPI:
         try:
             # API 호출하여 student_answers 시트의 데이터 가져오기
             result = self.service.spreadsheets().values().get(
-                spreadsheetId=self.SPREADSHEET_ID, 
+                spreadsheetId=self.spreadsheet_id, 
                 range='student_answers!A2:H'
             ).execute()
             
@@ -124,7 +364,7 @@ class GoogleSheetsAPI:
             
             # 열 이름 가져오기
             header_result = self.service.spreadsheets().values().get(
-                spreadsheetId=self.SPREADSHEET_ID, 
+                spreadsheetId=self.spreadsheet_id, 
                 range='student_answers!A1:H1'
             ).execute()
             
@@ -163,38 +403,6 @@ class GoogleSheetsAPI:
             logger.error(f"학생 답변 가져오기 중 오류 발생: {str(e)}")
             raise
     
-    def add_problem(self, problem_data):
-        """문제 추가하기"""
-        try:
-            # 문제 데이터 추출 (키 순서가 중요)
-            headers = ['문제ID', '과목', '학년', '문제유형', '난이도', '문제내용', 
-                      '보기1', '보기2', '보기3', '보기4', '보기5', '정답', '키워드', '해설']
-            
-            values = []
-            for header in headers:
-                values.append(problem_data.get(header, ''))
-            
-            # API 호출하여 problems 시트에 행 추가
-            body = {
-                'values': [values]
-            }
-            result = self.service.spreadsheets().values().append(
-                spreadsheetId=self.SPREADSHEET_ID,
-                range='problems!A2:N',
-                valueInputOption='RAW',
-                insertDataOption='INSERT_ROWS',
-                body=body
-            ).execute()
-            
-            logger.info(f"문제 '{problem_data['문제ID']}'가 성공적으로 추가되었습니다.")
-            return result
-        except HttpError as error:
-            logger.error(f"문제 추가 API 오류: {error}")
-            raise
-        except Exception as e:
-            logger.error(f"문제 추가 중 오류 발생: {str(e)}")
-            raise
-    
     def add_student_answer(self, answer_data):
         """학생 답변 추가하기"""
         try:
@@ -210,7 +418,7 @@ class GoogleSheetsAPI:
                 'values': [values]
             }
             result = self.service.spreadsheets().values().append(
-                spreadsheetId=self.SPREADSHEET_ID,
+                spreadsheetId=self.spreadsheet_id,
                 range='student_answers!A2:H',
                 valueInputOption='RAW',
                 insertDataOption='INSERT_ROWS',
@@ -230,7 +438,7 @@ class GoogleSheetsAPI:
         """시트의 특정 범위 데이터 지우기"""
         try:
             result = self.service.spreadsheets().values().clear(
-                spreadsheetId=self.SPREADSHEET_ID,
+                spreadsheetId=self.spreadsheet_id,
                 range=range_name
             ).execute()
             
@@ -251,7 +459,7 @@ class GoogleSheetsAPI:
                 'values': [row_data]
             }
             result = self.service.spreadsheets().values().append(
-                spreadsheetId=self.SPREADSHEET_ID,
+                spreadsheetId=self.spreadsheet_id,
                 range=f'{sheet_name}!A1',
                 valueInputOption='RAW',
                 insertDataOption='INSERT_ROWS',
@@ -332,7 +540,7 @@ class GoogleSheetsAPI:
         """Write values to specified range in Google Sheets"""
         try:
             self.service.spreadsheets().values().update(
-                spreadsheetId=self.SPREADSHEET_ID,
+                spreadsheetId=self.spreadsheet_id,
                 range=range_name,
                 valueInputOption='RAW',
                 body={'values': values}
@@ -346,7 +554,7 @@ class GoogleSheetsAPI:
         """Read values from specified range in Google Sheets"""
         try:
             result = self.service.spreadsheets().values().get(
-                spreadsheetId=self.SPREADSHEET_ID,
+                spreadsheetId=self.spreadsheet_id,
                 range=range_name
             ).execute()
             return result.get('values', [])
@@ -362,7 +570,7 @@ class GoogleSheetsAPI:
                 'values': values
             }
             self.service.spreadsheets().values().append(
-                spreadsheetId=self.SPREADSHEET_ID,
+                spreadsheetId=self.spreadsheet_id,
                 range=range_name,
                 valueInputOption='RAW',
                 insertDataOption='INSERT_ROWS',
@@ -379,7 +587,7 @@ class GoogleSheetsAPI:
         
         # Find the correct answer from problems sheet
         result = self.service.spreadsheets().values().get(
-            spreadsheetId=self.SPREADSHEET_ID,
+            spreadsheetId=self.spreadsheet_id,
             range='problems!A2:L'
         ).execute()
         problems = result.get('values', [])
@@ -397,7 +605,7 @@ class GoogleSheetsAPI:
         # Append the answer to student_answers sheet
         values = [[student_id, name, grade, problem_id, answer, score, feedback, now]]
         self.service.spreadsheets().values().append(
-            spreadsheetId=self.SPREADSHEET_ID,
+            spreadsheetId=self.spreadsheet_id,
             range='student_answers!A2:H',
             valueInputOption='RAW',
             insertDataOption='INSERT_ROWS',

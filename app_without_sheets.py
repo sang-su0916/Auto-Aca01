@@ -68,7 +68,106 @@ def initialize_user_db():
 # 사용자 데이터베이스 로드
 users_db = initialize_user_db()
 
-# CSV 파일 기반 데이터 로드
+# 구글 시트 연동을 위한 전역 변수
+SHEETS_AVAILABLE = True
+SPREADSHEET_ID = '1PV_X2Xdlbh72E_VJSp9_CwhFCezOImu8PdkbBwm-0jA'  # 테스트 스프레드시트 ID
+
+# 구글 시트에서 문제 데이터 가져오기
+def initialize_sample_questions():
+    """구글 시트 또는 로컬 파일에서 문제 데이터 초기화"""
+    # 구글 시트 연결 시도
+    try:
+        # 구글 API 접근 범위 설정
+        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        
+        # 서비스 계정 자격 증명 생성
+        credentials = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', scope)
+        
+        # gspread 클라이언트 인증
+        client = gspread.authorize(credentials)
+        
+        # 기존 스프레드시트 열기 시도
+        try:
+            spreadsheet = client.open_by_key(SPREADSHEET_ID)
+            worksheet = spreadsheet.get_worksheet(0)
+            
+            # 데이터 가져오기
+            data = worksheet.get_all_records()
+            
+            if data:
+                print(f"구글 시트에서 {len(data)}개의 문제를 가져왔습니다.")
+                return pd.DataFrame(data)
+            else:
+                print("구글 시트에 데이터가 없습니다. 스프레드시트 초기화를 시도합니다.")
+                
+                # 워크시트가 이미 '테스트 데이터'인지 확인
+                if worksheet.title != "테스트 데이터":
+                    # 워크시트 제목 업데이트
+                    worksheet.update_title("테스트 데이터")
+                
+                # 헤더 설정
+                headers = [
+                    "문제ID", "과목", "학년", "문제유형", "난이도", "문제내용",
+                    "보기1", "보기2", "보기3", "보기4", "보기5", "정답", "키워드", "해설"
+                ]
+                worksheet.update([headers])
+                
+                # 샘플 데이터 생성
+                sample_data = generate_sample_data(20)  # 20개의 샘플 문제 생성
+                
+                # 샘플 데이터를 데이터프레임으로 변환
+                sample_df = pd.DataFrame(sample_data)
+                
+                # 스프레드시트에 데이터 추가
+                worksheet.update([headers] + [sample_df.iloc[i].tolist() for i in range(len(sample_df))])
+                
+                print(f"구글 시트에 {len(sample_df)}개의 샘플 문제를 추가했습니다.")
+                return sample_df
+                
+        except gspread.exceptions.SpreadsheetNotFound:
+            # 스프레드시트가 없으면 새로 생성
+            print("스프레드시트를 찾을 수 없습니다. 새로 생성합니다.")
+            spreadsheet = client.create('학원 자동 첨삭 시스템 - 문제 데이터')
+            
+            # 첫 번째 시트 제목 변경
+            worksheet = spreadsheet.sheet1
+            worksheet.update_title("문제 데이터")
+            
+            # 새 스프레드시트 ID 저장 (나중에 사용)
+            print(f"새로운 스프레드시트 ID: {spreadsheet.id}")
+            
+            # 헤더 설정
+            headers = [
+                "문제ID", "과목", "학년", "문제유형", "난이도", "문제내용",
+                "보기1", "보기2", "보기3", "보기4", "보기5", "정답", "키워드", "해설"
+            ]
+            worksheet.update([headers])
+            
+            # 샘플 데이터 생성
+            sample_data = generate_sample_data(20)  # 20개의 샘플 문제 생성
+            
+            # 샘플 데이터를 데이터프레임으로 변환
+            sample_df = pd.DataFrame(sample_data)
+            
+            # 스프레드시트에 데이터 추가
+            data_to_update = [headers]
+            for i in range(len(sample_data)):
+                row = [str(sample_data[i][col]) if sample_data[i][col] is not None else '' for col in sample_data[i]]
+                data_to_update.append(row)
+            
+            worksheet.update(data_to_update)
+            
+            print(f"구글 시트에 {len(sample_data)}개의 샘플 문제를 추가했습니다.")
+            return sample_df
+            
+    except Exception as e:
+        print(f"구글 시트 연동 오류: {str(e)}")
+        print("로컬 파일에서 데이터를 로드합니다.")
+    
+    # 구글 시트 연동 실패 시 로컬 CSV 파일 사용
+    return load_csv_data()[0]  # problems_df만 반환
+
+# CSV 파일 기반 데이터 로드 (구글 시트 연동 실패 시 사용)
 def load_csv_data():
     try:
         # 샘플 문제 파일 생성 (없는 경우)
@@ -145,6 +244,58 @@ def create_sample_questions():
     ])
     sample_questions.to_csv('sample_questions.csv', index=False)
 
+# 샘플 데이터 생성 함수
+def generate_sample_data(num_questions=20):
+    """샘플 문제 데이터 생성"""
+    sample_data = []
+    subjects = ["영어", "수학", "국어", "과학", "사회"]
+    grades = ["중1", "중2", "중3", "고1", "고2", "고3"]
+    difficulties = ["상", "중", "하"]
+    problem_types = ["객관식", "주관식"]
+    
+    for i in range(1, num_questions + 1):
+        subject = subjects[i % len(subjects)]
+        grade = grades[i % len(grades)]
+        difficulty = difficulties[i % len(difficulties)]
+        problem_type = problem_types[i % len(problem_types)]
+        
+        if problem_type == "객관식":
+            sample_data.append({
+                '문제ID': f'P{i:03d}',
+                '과목': subject,
+                '학년': grade,
+                '문제유형': problem_type,
+                '난이도': difficulty,
+                '문제내용': f'샘플 {subject} 문제 {i}번입니다. 올바른 답을 고르세요.',
+                '보기1': '보기 1',
+                '보기2': '보기 2',
+                '보기3': '보기 3',
+                '보기4': '보기 4',
+                '보기5': '',
+                '정답': '보기 1',
+                '키워드': f'{subject},샘플,문제{i}',
+                '해설': f'샘플 문제 {i}번의 해설입니다.'
+            })
+        else:
+            sample_data.append({
+                '문제ID': f'P{i:03d}',
+                '과목': subject,
+                '학년': grade,
+                '문제유형': problem_type,
+                '난이도': difficulty,
+                '문제내용': f'샘플 {subject} 주관식 문제 {i}번입니다. 답을 작성하세요.',
+                '보기1': '',
+                '보기2': '',
+                '보기3': '',
+                '보기4': '',
+                '보기5': '',
+                '정답': f'샘플 주관식 문제 {i}번의 정답입니다.',
+                '키워드': f'{subject},샘플,주관식,문제{i}',
+                '해설': f'샘플 주관식 문제 {i}번의 해설입니다.'
+            })
+    
+    return sample_data
+
 # 세션 상태 초기화
 if "page" not in st.session_state:
     st.session_state.page = "login"
@@ -158,19 +309,24 @@ if "user_data" not in st.session_state:
         "grade": ""
     }
 
-# 데이터 로드
-problems_df, answers_df = load_csv_data()
-if problems_df is not None:
-    st.session_state.problems_df = problems_df
-else:
-    st.session_state.problems_df = pd.DataFrame()
+# Google Sheets에서 문제 데이터 로드
+st.session_state.problems_df = initialize_sample_questions()
 
-if answers_df is not None:
-    st.session_state.answers_df = answers_df
+# 학생 답안 데이터 로드 (여전히 CSV 파일 사용)
+if os.path.exists('student_answers.csv'):
+    try:
+        st.session_state.answers_df = pd.read_csv('student_answers.csv')
+    except Exception as e:
+        st.error(f"학생 답안 파일 로드 오류: {str(e)}")
+        st.session_state.answers_df = pd.DataFrame(columns=[
+            '학생ID', '이름', '학년', '문제ID', '제출답안', '점수', '피드백', '제출시간'
+        ])
 else:
+    # 학생 답안 파일이 없으면 새로 생성
     st.session_state.answers_df = pd.DataFrame(columns=[
         '학생ID', '이름', '학년', '문제ID', '제출답안', '점수', '피드백', '제출시간'
     ])
+    st.session_state.answers_df.to_csv('student_answers.csv', index=False)
 
 # 스타일 설정
 st.markdown("""
@@ -362,27 +518,44 @@ def teacher_dashboard():
                     # 스프레드시트 열기 시도
                     spreadsheet = client.open_by_key(sheet_id)
                     
-                    # 시트에 접근 가능하면 성공 메시지와 공유 링크 표시
-                    st.success("구글 시트 연결 성공!")
+                    # 시트 이름을 확인하고 가져오기
+                    try:
+                        # 먼저 '테스트 데이터'라는 이름의 워크시트 찾기
+                        worksheet = spreadsheet.worksheet('테스트 데이터')
+                    except:
+                        try:
+                            # '테스트 데이터'가 없으면 'Sheet1' 시도
+                            worksheet = spreadsheet.worksheet('Sheet1')
+                        except:
+                            # 그것도 없으면 첫 번째 시트 사용
+                            worksheet = spreadsheet.get_worksheet(0)
                     
-                    st.markdown(f"""
-                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;">
-                        <h4>📋 구글 시트 공유 링크</h4>
-                        <p><a href="{share_url}" target="_blank">{share_url}</a></p>
-                        <p style="font-size: 0.9em;">이 링크를 다른 교사나 관리자와 공유하세요.</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # 데이터 가져오기
+                    data = worksheet.get_all_records()
                     
-                    # 시트 데이터 로드 버튼
-                    if st.button("시트 데이터 불러오기", use_container_width=True):
-                        sheets_data = load_from_google_sheets()
-                        if sheets_data is not None:
-                            st.session_state.problems_df = sheets_data
-                            save_data()  # 로컬에도 저장
-                            st.success(f"Google Sheets에서 {len(sheets_data)}개의 문제를 성공적으로 불러왔습니다!")
-            
+                    if data:
+                        problems_df = pd.DataFrame(data)
+                        st.success(f"Google Sheets에서 {len(problems_df)}개의 문제를 가져왔습니다.")
+                        print("구글 시트 모듈 로드 성공!")
+                        print(f"Google Sheets에서 {len(problems_df)}개의 문제를 가져왔습니다.")
+                        
+                        # 구글 스프레드시트 공유 링크 표시
+                        share_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit?usp=sharing"
+                        st.markdown(f"""
+                        <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                            <p><strong>📋 Google Sheets 공유 링크:</strong></p>
+                            <p><a href="{share_url}" target="_blank">{share_url}</a></p>
+                            <p style="font-size: 0.8em;">이 링크를 다른 사람과 공유하면 같은 스프레드시트에 접근할 수 있습니다.</p>
+                            <p style="font-size: 0.8em;">스프레드시트 권한 설정에서 공유 옵션을 변경할 수 있습니다.</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        return problems_df
+                    else:
+                        st.error("Google Sheets에서 데이터를 가져오지 못했습니다.")
+                        return None
             except Exception as e:
-                st.error(f"구글 시트 연결 오류: {str(e)}")
+                st.error(f"스프레드시트 접근 오류: {str(e)}")
                 st.info("시트 ID가 올바른지, 해당 시트에 접근 권한이 있는지 확인하세요.")
                 
         # 새 시트 만들기 섹션
@@ -605,132 +778,6 @@ def login_screen():
         - 비밀번호: 1234
         """)
         st.markdown("</div>", unsafe_allow_html=True)
-
-# 구글 시트 연동 함수
-def load_from_google_sheets():
-    try:
-        # 사용할 구글 API 범위
-        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        
-        # 서비스 계정 키 파일 경로
-        credentials_path = 'credentials.json'
-        
-        # 테스트용 상수 시트 ID (구글 시트 ID가 없을 때 사용)
-        DEFAULT_SHEET_ID = "1PV_X2Xdlbh72E_VJSp9_CwhFCezOImu8PdkbBwm-0jA"
-        
-        if not os.path.exists(credentials_path):
-            st.warning("Google Sheets 연동을 위한 credentials.json 파일이 필요합니다.")
-            st.info("1. Google Cloud Console에서 서비스 계정을 생성하고 JSON 키를 다운로드하세요.")
-            st.info("2. 다운로드한 키 파일을 'credentials.json'으로 이름을 변경하고 앱 폴더에 저장하세요.")
-            st.info("3. 공유하려는 Google 스프레드시트에서 서비스 계정 이메일을 공유 권한에 추가하세요.")
-            
-            # 테스트 모드 여부 확인
-            test_mode = st.checkbox("테스트 모드로 실행 (샘플 데이터 사용)", value=True)
-            if test_mode:
-                # 테스트 데이터 생성
-                st.info(f"테스트 모드로 실행합니다. 샘플 문제를 생성합니다.")
-                data = []
-                subjects = ["영어", "수학", "국어", "과학", "사회"]
-                grades = ["중1", "중2", "중3", "고1", "고2", "고3"]
-                difficulties = ["상", "중", "하"]
-                problem_types = ["객관식", "주관식"]
-                
-                for i in range(1, 11):
-                    subject = subjects[i % len(subjects)]
-                    grade = grades[i % len(grades)]
-                    difficulty = difficulties[i % len(difficulties)]
-                    problem_type = problem_types[i % len(problem_types)]
-                    
-                    if problem_type == "객관식":
-                        data.append({
-                            '문제ID': f'P{i:03d}',
-                            '과목': subject,
-                            '학년': grade,
-                            '문제유형': problem_type,
-                            '난이도': difficulty,
-                            '문제내용': f'샘플 {subject} 문제 {i}번입니다. 올바른 답을 고르세요.',
-                            '보기1': '보기 1',
-                            '보기2': '보기 2',
-                            '보기3': '보기 3',
-                            '보기4': '보기 4',
-                            '보기5': '',
-                            '정답': '1',
-                            '키워드': '',
-                            '해설': f'샘플 문제 {i}번의 해설입니다.'
-                        })
-                    else:
-                        data.append({
-                            '문제ID': f'P{i:03d}',
-                            '과목': subject,
-                            '학년': grade,
-                            '문제유형': problem_type,
-                            '난이도': difficulty,
-                            '문제내용': f'샘플 {subject} 주관식 문제 {i}번입니다. 답을 작성하세요.',
-                            '보기1': '',
-                            '보기2': '',
-                            '보기3': '',
-                            '보기4': '',
-                            '보기5': '',
-                            '정답': '정답',
-                            '키워드': '키워드1,키워드2',
-                            '해설': f'샘플 주관식 문제 {i}번의 해설입니다.'
-                        })
-                
-                sample_df = pd.DataFrame(data)
-                st.success(f"테스트용 샘플 문제 {len(sample_df)}개가 생성되었습니다.")
-                return sample_df
-            
-            return None
-        
-        # 자격 증명 및 클라이언트 생성
-        credentials = ServiceAccountCredentials.from_json_keyfile_name(credentials_path, scope)
-        client = gspread.authorize(credentials)
-        
-        # 스프레드시트 열기 (문제 데이터)
-        sheet_url = st.secrets.get("google_sheets_url", "") if hasattr(st, "secrets") else ""
-        
-        # 기본 시트 ID 사용 - app_simple.py와 동일하게 동작하도록 수정
-        sheet_id = DEFAULT_SHEET_ID
-        
-        try:
-            # 스프레드시트 열기 시도
-            spreadsheet = client.open_by_key(sheet_id)
-            
-            # 첫 번째 시트 선택 (문제 데이터)
-            worksheet = spreadsheet.get_worksheet(0)
-            
-            # 데이터 가져오기
-            data = worksheet.get_all_records()
-            
-            if data:
-                problems_df = pd.DataFrame(data)
-                st.success(f"Google Sheets에서 {len(problems_df)}개의 문제를 가져왔습니다.")
-                print("구글 시트 모듈 로드 성공!")
-                print(f"Google Sheets에서 {len(problems_df)}개의 문제를 가져왔습니다.")
-                
-                # 구글 스프레드시트 공유 링크 표시
-                share_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit?usp=sharing"
-                st.markdown(f"""
-                <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <p><strong>📋 Google Sheets 공유 링크:</strong></p>
-                    <p><a href="{share_url}" target="_blank">{share_url}</a></p>
-                    <p style="font-size: 0.8em;">이 링크를 다른 사람과 공유하면 같은 스프레드시트에 접근할 수 있습니다.</p>
-                    <p style="font-size: 0.8em;">스프레드시트 권한 설정에서 공유 옵션을 변경할 수 있습니다.</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                return problems_df
-            else:
-                st.error("Google Sheets에서 데이터를 가져오지 못했습니다.")
-                return None
-        except Exception as e:
-            st.error(f"스프레드시트 접근 오류: {str(e)}")
-            st.info("시트 ID가 올바른지, 해당 시트에 접근 권한이 있는지 확인하세요.")
-            return None
-            
-    except Exception as e:
-        st.error(f"Google Sheets 연동 오류: {str(e)}")
-        return None
 
 # 문제 관리 함수
 def manage_problems():
@@ -960,62 +1007,6 @@ def main():
             teacher_dashboard()
         else:
             student_portal()
-
-# 샘플 데이터 생성 함수
-def generate_sample_data():
-    # 테스트 모드로 샘플 데이터 생성
-    sample_data = []
-    subjects = ["영어", "수학", "국어", "과학", "사회"]
-    grades = ["중1", "중2", "중3", "고1", "고2", "고3"]
-    difficulties = ["상", "중", "하"]
-    problem_types = ["객관식", "주관식"]
-    
-    for i in range(1, 21):
-        subject = subjects[i % len(subjects)]
-        grade = grades[i % len(grades)]
-        difficulty = difficulties[i % len(difficulties)]
-        problem_type = problem_types[i % len(problem_types)]
-        
-        if problem_type == "객관식":
-            sample_data.append({
-                '문제ID': f'P{i:03d}',
-                '과목': subject,
-                '학년': grade,
-                '문제유형': problem_type,
-                '난이도': difficulty,
-                '문제내용': f'샘플 {subject} 문제 {i}번입니다. 올바른 답을 고르세요.',
-                '보기1': '보기 1',
-                '보기2': '보기 2',
-                '보기3': '보기 3',
-                '보기4': '보기 4',
-                '보기5': '',
-                '정답': '1',
-                '키워드': '',
-                '해설': f'샘플 문제 {i}번의 해설입니다.'
-            })
-        else:
-            sample_data.append({
-                '문제ID': f'P{i:03d}',
-                '과목': subject,
-                '학년': grade,
-                '문제유형': problem_type,
-                '난이도': difficulty,
-                '문제내용': f'샘플 {subject} 주관식 문제 {i}번입니다. 답을 작성하세요.',
-                '보기1': '',
-                '보기2': '',
-                '보기3': '',
-                '보기4': '',
-                '보기5': '',
-                '정답': '정답',
-                '키워드': '키워드1,키워드2',
-                '해설': f'샘플 주관식 문제 {i}번의 해설입니다.'
-            })
-    
-    # 테스트 데이터를 데이터프레임으로 변환
-    st.session_state.problems_df = pd.DataFrame(sample_data)
-    print("테스트 데이터 생성 완료!")
-    print(f"샘플 문제 {len(sample_data)}개가 생성되었습니다.")
-    save_data()  # 로컬에 저장
 
 # 앱 실행
 if __name__ == "__main__":

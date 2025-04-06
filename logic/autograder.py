@@ -18,6 +18,23 @@ class AutoGrader(Grader):
         """Google Sheets 연결 상태 확인"""
         return self.sheets_connected
     
+    def grade_answer(self, problem_type: str, correct_answer: str, 
+                     user_answer: str, keywords: Optional[str] = None) -> Tuple[int, str]:
+        """
+        학생 답안 채점 (부모 메서드를 호출하여 일관성 유지)
+        
+        Args:
+            problem_type (str): 문제 유형 ('객관식', '주관식', '서술형')
+            correct_answer (str): 정답 또는 모범답안
+            user_answer (str): 학생 제출 답안
+            keywords (Optional[str]): 핵심 키워드 (쉼표로 구분)
+            
+        Returns:
+            Tuple[int, str]: (점수, 피드백)
+        """
+        # 부모 클래스의 채점 메서드 호출
+        return super().grade_answer(problem_type, correct_answer, user_answer, keywords)
+    
     def grade_and_save(self, problem_type: str, correct_answer: str, 
                       user_answer: str, keywords: Optional[str] = None,
                       student_id: str = "", problem_id: str = "") -> Tuple[int, str]:

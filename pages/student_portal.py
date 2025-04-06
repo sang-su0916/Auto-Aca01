@@ -40,7 +40,7 @@ def submit_answer(problem_id: str, answer: str, model_answer: str, keywords: str
     try:
         # Grade the answer
         grader = AutoGrader()
-        score, feedback = grader.grade_answer(answer, model_answer, keywords)
+        score, feedback = grader.grade_answer("서술형", model_answer, answer, keywords)
         
         # Prepare submission data
         submission_data = [
