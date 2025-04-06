@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from logic.autograder import AutoGrader
+from logic.grader import Grader
 
 def student_login():
     """Handle student login"""
@@ -39,7 +39,7 @@ def submit_answer(problem_id: str, answer: str, model_answer: str, keywords: str
     """Submit and grade student's answer"""
     try:
         # Grade the answer
-        grader = AutoGrader()
+        grader = Grader()
         score, feedback = grader.grade_answer("서술형", model_answer, answer, keywords)
         
         # Prepare submission data

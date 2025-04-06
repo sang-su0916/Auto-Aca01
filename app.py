@@ -8,6 +8,8 @@ import json
 from dotenv import load_dotenv
 from pathlib import Path
 import random
+# 로직 모듈 임포트
+from logic.grader import Grader
 
 # 환경 변수 로드
 load_dotenv()
@@ -184,41 +186,15 @@ def load_data():
 
 # 문제 채점 함수
 def grade_answer(problem_type, correct_answer, user_answer, keywords=None):
-    if problem_type == '객관식':
-        is_correct = user_answer.strip() == correct_answer.strip()
-        score = 100 if is_correct else 0
-        feedback = "정답입니다!" if is_correct else f"오답입니다. 정답은 '{correct_answer}'입니다."
-    else:  # 주관식
-        if not keywords:
-            # 키워드가 없을 경우 정확히 일치하는지 확인
-            is_correct = user_answer.strip().lower() == correct_answer.strip().lower()
-            score = 100 if is_correct else 0
-            feedback = "정답입니다!" if is_correct else f"오답입니다. 정답 예시: '{correct_answer}'"
-        else:
-            # 키워드 기반 채점
-            keywords_list = [k.strip().lower() for k in keywords.split(',')]
-            user_answer_lower = user_answer.strip().lower()
-            
-            matched_keywords = [k for k in keywords_list if k in user_answer_lower]
-            if matched_keywords:
-                score = min(100, int(len(matched_keywords) / len(keywords_list) * 100))
-                if score >= 80:
-                    feedback = "정답입니다! 필요한 키워드를 모두 포함했습니다."
-                elif score >= 50:
-                    feedback = f"부분 정답입니다. 다음 키워드가 포함되었습니다: {', '.join(matched_keywords)}"
-                else:
-                    feedback = f"아쉽습니다. 일부 키워드만 포함되었습니다: {', '.join(matched_keywords)}"
-            else:
-                score = 0
-                feedback = f"오답입니다. 다음 키워드 중 일부를 포함해야 합니다: {', '.join(keywords_list[:2])}"
-    
-    return {"score": score, "feedback": feedback}
+    grader = Grader()
+    return grader.grade_answer(problem_type, correct_answer, user_answer, keywords)
 
 # 학생 답변 저장 함수
 def save_student_answer(student_id, name, grade, problem_id, answer, score, feedback):
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # 현재 시간 기록
+    submission_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    # 답변 저장
+    # 학생 답변 데이터 구성
     new_answer = {
         '학생ID': student_id,
         '이름': name,
@@ -227,28 +203,25 @@ def save_student_answer(student_id, name, grade, problem_id, answer, score, feed
         '제출답안': answer,
         '점수': score,
         '피드백': feedback,
-        '제출시간': now
+        '제출시간': submission_time
     }
     
-    # 로컬 변수에 추가
-    if st.session_state.student_answers is None:
-        st.session_state.student_answers = []
+    # 세션 상태에 추가
     st.session_state.student_answers.append(new_answer)
     
-    # Google Sheets API 사용 가능한 경우
-    if GOOGLE_SHEETS_AVAILABLE and os.path.exists('credentials.json') and 'GOOGLE_SHEETS_SPREADSHEET_ID' in os.environ:
+    # Google Sheets API가 있으면 저장
+    if 'sheets_api' in st.session_state:
         try:
-            sheets_api = GoogleSheetsAPI()
-            sheets_api.add_student_answer(new_answer)
+            sheets_api = st.session_state.sheets_api
+            # API로 학생 답변 저장
+            sheets_api.save_student_answer(new_answer)
+            return True
         except Exception as e:
-            st.error(f"Google Sheets API 저장 오류: {str(e)}")
-            # 오류 발생 시 로컬 파일에 저장
-            save_to_local_csv(new_answer)
-    else:
-        # 로컬 CSV 파일에 저장
-        save_to_local_csv(new_answer)
+            st.error(f"Google Sheets에 저장 실패: {str(e)}")
     
-    return {"submitted_at": now}
+    # 로컬 CSV 파일에 저장
+    save_to_local_csv(new_answer)
+    return True
 
 # 로컬 CSV 파일에 학생 답변 저장
 def save_to_local_csv(new_answer):
