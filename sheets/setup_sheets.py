@@ -5,12 +5,19 @@ import pandas as pd
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from dotenv import load_dotenv
+
+# Make sure the needed packages are installed
+# pip install pandas python-dotenv google-auth google-api-python-client
+
+# 환경 변수 로드
+load_dotenv()
 
 # 상수 정의
 SHEETS_AVAILABLE = True  # 이제 항상 사용 가능하도록 설정
-SERVICE_ACCOUNT_FILE = 'credentials.json'
+SERVICE_ACCOUNT_FILE = '../credentials.json'  # 상위 디렉토리에 있는 credentials.json 파일 참조
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-SPREADSHEET_ID = '1PV_X2Xdlbh72E_VJSp9_CwhFCezOImu8PdkbBwm-0jA'  # 새로 만든 스프레드시트 ID
+SPREADSHEET_ID = os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID', '1ke4Sv6TjOBua-hm-PLayMFHubA1mcJCrg0VVTJzf2d0')
 
 def get_sheets_service():
     """Google Sheets API 서비스 객체 반환"""

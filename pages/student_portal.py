@@ -3,6 +3,9 @@ import pandas as pd
 from datetime import datetime
 from logic.grader import Grader
 
+# Make sure the needed packages are installed
+# pip install streamlit pandas python-dotenv
+
 def student_login():
     """Handle student login"""
     with st.form("login_form"):
