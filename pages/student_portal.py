@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from logic.grader import AutoGrader
+from logic.autograder import AutoGrader
 
 def student_login():
     """Handle student login"""

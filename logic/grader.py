@@ -9,12 +9,14 @@ class Grader:
         self.min_score = 0
     
     def preprocess_text(self, text: str) -> str:
-        """Preprocess text for comparison"""
-        # Convert to lowercase
+        """텍스트 전처리"""
+        if not isinstance(text, str):
+            text = str(text)
+        # 소문자 변환
         text = text.lower()
-        # Remove punctuation
+        # 특수문자 제거
         text = re.sub(r'[^\w\s]', '', text)
-        # Remove extra whitespace
+        # 여러 공백 제거
         text = ' '.join(text.split())
         return text
     
