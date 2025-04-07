@@ -21,6 +21,16 @@ import random
 # 로직 모듈 임포트
 from logic.grader import Grader
 
+# 전역 변수 선언
+GOOGLE_SHEETS_AVAILABLE = False
+
+try:
+    # 구글 시트 모듈 임포트 시도
+    from sheets.google_sheets import GoogleSheetsAPI
+except ImportError:
+    # 가져오기 실패 시 메시지 표시 (실제 실행시에만 표시됨)
+    pass
+
 # 환경 변수 파일을 직접 읽어서 처리
 env_path = Path('.env')
 if env_path.exists():
@@ -141,7 +151,9 @@ def load_data():
     initialize_csv_files()
     
     # 구글 시트 API 연동 시도
+    global GOOGLE_SHEETS_AVAILABLE
     GOOGLE_SHEETS_AVAILABLE = False
+    
     try:
         # sheets/google_sheets.py 모듈이 있는지 확인
         from sheets.google_sheets import GoogleSheetsAPI
@@ -170,8 +182,6 @@ def load_data():
     # 구글 시트에서 데이터 로드 시도
     if GOOGLE_SHEETS_AVAILABLE and 'sheets_api' in st.session_state:
         try:
-            sheets_api = st.session_state.sheets_api
-            
             # 학생 답변 데이터 로드
             student_answers = sheets_api.get_student_answers()
             if student_answers:
@@ -387,10 +397,10 @@ def teacher_dashboard():
                     st.session_state.problems.append(new_problem)
                     
                     # Google Sheets API 사용 가능한 경우
-                    if GOOGLE_SHEETS_AVAILABLE and os.path.exists('credentials.json') and 'GOOGLE_SHEETS_SPREADSHEET_ID' in os.environ:
+                    global GOOGLE_SHEETS_AVAILABLE
+                    if GOOGLE_SHEETS_AVAILABLE and 'sheets_api' in st.session_state:
                         try:
-                            sheets_api = GoogleSheetsAPI()
-                            sheets_api.add_problem(new_problem)
+                            st.session_state.sheets_api.add_problem(new_problem)
                         except Exception as e:
                             st.error(f"Google Sheets API 저장 오류: {str(e)}")
                             # 오류 발생 시 로컬 파일에 저장
