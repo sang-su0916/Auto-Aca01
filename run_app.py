@@ -10,7 +10,7 @@ def run_app():
     print("학원 자동 첨삭 시스템을 시작합니다...")
     
     # 실행할 앱 파일 이름
-    app_file = 'app_fixed.py'
+    app_file = 'app.py'
     
     try:
         # Python 실행 경로
