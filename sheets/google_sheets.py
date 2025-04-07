@@ -343,140 +343,223 @@ class GoogleSheetsAPI:
             traceback.print_exc()
             return False
 
-    def get_problems(self):
-        """문제 목록 가져오기"""
+    def get_problems(self, sheet_name='테스트 데이터'):
+        """모든 문제 데이터를 가져옵니다"""
+        logger.info("모든 문제 데이터 가져오기 시작")
         try:
-            # API 호출하여 problems 시트의 데이터 가져오기
-            result = self.service.spreadsheets().values().get(
-                spreadsheetId=self.spreadsheet_id, 
-                range='problems!A2:N'
-            ).execute()
+            # fetch_problems 메서드 호출하여 데이터프레임 가져오기
+            df = self.fetch_problems(sheet_name)
             
-            values = result.get('values', [])
-            if not values:
-                logger.warning("문제가 없거나 가져올 수 없습니다.")
+            if df.empty:
+                logger.warning("문제 데이터가 없습니다.")
                 return []
             
-            # 열 이름 가져오기
-            header_result = self.service.spreadsheets().values().get(
-                spreadsheetId=self.spreadsheet_id, 
-                range='problems!A1:N1'
-            ).execute()
-            
-            headers = header_result.get('values', [['문제ID', '과목', '학년', '문제유형', '난이도', '문제내용', 
-                                                '보기1', '보기2', '보기3', '보기4', '보기5', '정답', '키워드', '해설']])[0]
-            
-            # 데이터 처리 - 각 행을 사전 형태로 변환
-            problems = []
-            for row in values:
-                # 부족한 열은 빈 문자열로 채우기
-                if len(row) < len(headers):
-                    row.extend([''] * (len(headers) - len(row)))
-                
-                # 문제 데이터 생성
-                problem_data = {}
-                for i, header in enumerate(headers):
-                    if i < len(row):
-                        problem_data[header] = row[i]
-                    else:
-                        problem_data[header] = ''
-                
-                problems.append(problem_data)
-            
-            logger.info(f"총 {len(problems)}개의 문제를 성공적으로 가져왔습니다.")
+            # 데이터프레임을 딕셔너리 리스트로 변환
+            problems = df.to_dict('records')
+            logger.info(f"{len(problems)}개의 문제 데이터를 가져왔습니다.")
             return problems
-        except HttpError as error:
-            logger.error(f"문제 가져오기 API 오류: {error}")
-            raise
         except Exception as e:
-            logger.error(f"문제 가져오기 중 오류 발생: {str(e)}")
-            raise
+            logger.error(f"문제 데이터 가져오기 오류: {str(e)}")
+            traceback.print_exc()
+            return []
     
-    def get_student_answers(self):
-        """학생 답변 가져오기"""
+    def get_daily_problems(self, grade=None, count=20, sheet_name='테스트 데이터'):
+        """오늘의 문제를 가져옵니다. 학년별로 필터링 가능"""
+        logger.info(f"오늘의 문제 가져오기 시작 (학년: {grade})")
         try:
-            # API 호출하여 student_answers 시트의 데이터 가져오기
+            # 모든 문제 가져오기
+            all_problems = self.get_problems(sheet_name)
+            
+            if not all_problems:
+                logger.warning("문제 데이터가 없습니다.")
+                return []
+            
+            # 학년별 필터링
+            if grade:
+                filtered_problems = [p for p in all_problems if p.get('학년', '') == grade]
+            else:
+                filtered_problems = all_problems
+            
+            if not filtered_problems:
+                logger.warning(f"{grade} 학년에 해당하는 문제가 없습니다.")
+                return []
+            
+            # 랜덤 선택 (최대 count 개수)
+            if len(filtered_problems) > count:
+                daily_problems = random.sample(filtered_problems, count)
+            else:
+                daily_problems = filtered_problems
+            
+            logger.info(f"오늘의 문제 {len(daily_problems)}개를 선택했습니다.")
+            return daily_problems
+        except Exception as e:
+            logger.error(f"오늘의 문제 가져오기 오류: {str(e)}")
+            traceback.print_exc()
+            return []
+    
+    def get_weekly_problems(self, grade=None, problems_per_day=10, days=7, sheet_name='테스트 데이터'):
+        """주간 문제 계획을 생성합니다"""
+        logger.info(f"주간 문제 계획 생성 시작 (학년: {grade}, 일수: {days})")
+        try:
+            # 모든 문제 가져오기
+            all_problems = self.get_problems(sheet_name)
+            
+            if not all_problems:
+                logger.warning("문제 데이터가 없습니다.")
+                return {}
+            
+            # 학년별 필터링
+            if grade:
+                filtered_problems = [p for p in all_problems if p.get('학년', '') == grade]
+            else:
+                filtered_problems = all_problems
+            
+            if not filtered_problems:
+                logger.warning(f"{grade} 학년에 해당하는 문제가 없습니다.")
+                return {}
+            
+            # 날짜별 문제 계획 생성
+            weekly_plan = {}
+            today = datetime.now()
+            
+            # 문제가 부족한 경우 중복 허용
+            allow_duplicates = len(filtered_problems) < problems_per_day * days
+            
+            for i in range(days):
+                date = today + timedelta(days=i)
+                date_str = date.strftime("%Y-%m-%d")
+                
+                if allow_duplicates:
+                    # 중복 허용 (랜덤 선택)
+                    day_problems = random.choices(filtered_problems, k=problems_per_day)
+                else:
+                    # 중복 없이 선택 (가능한 경우)
+                    remaining = [p for p in filtered_problems if p not in sum(weekly_plan.values(), [])]
+                    if len(remaining) < problems_per_day:
+                        # 문제가 부족하면 전체 필터링된 문제에서 다시 선택
+                        remaining = filtered_problems
+                    
+                    day_problems = random.sample(remaining, min(problems_per_day, len(remaining)))
+                
+                weekly_plan[date_str] = day_problems
+            
+            logger.info(f"{days}일간의 주간 계획이 생성되었습니다.")
+            return weekly_plan
+        except Exception as e:
+            logger.error(f"주간 계획 생성 오류: {str(e)}")
+            traceback.print_exc()
+            return {}
+    
+    def get_student_answers(self, sheet_name='학생답변'):
+        """학생 답변 데이터를 가져옵니다"""
+        logger.info("학생 답변 데이터 가져오기 시작")
+        if not self.is_connected():
+            logger.warning("Google Sheets API가 초기화되지 않았습니다.")
+            return []
+        
+        try:
+            # 데이터 가져오기
+            range_name = f'{sheet_name}!A:H'  # 학생ID, 이름, 학년, 문제ID, 제출답안, 점수, 피드백, 제출시간
             result = self.service.spreadsheets().values().get(
-                spreadsheetId=self.spreadsheet_id, 
-                range='student_answers!A2:H'
+                spreadsheetId=self.spreadsheet_id,
+                range=range_name
             ).execute()
             
             values = result.get('values', [])
             if not values:
-                logger.warning("학생 답변이 없거나 가져올 수 없습니다.")
+                logger.warning("학생 답변 데이터가 없습니다.")
                 return []
             
-            # 열 이름 가져오기
-            header_result = self.service.spreadsheets().values().get(
-                spreadsheetId=self.spreadsheet_id, 
-                range='student_answers!A1:H1'
-            ).execute()
+            # 헤더 가져오기
+            headers = values[0]
             
-            headers = header_result.get('values', [['학생ID', '이름', '학년', '문제ID', '제출답안', '점수', '피드백', '제출시간']])[0]
+            # 데이터 가져오기 (헤더 제외)
+            data = values[1:]
             
-            # 데이터 처리 - 각 행을 사전 형태로 변환
-            answers = []
-            for row in values:
-                # 부족한 열은 빈 문자열로 채우기
-                if len(row) < len(headers):
-                    row.extend([''] * (len(headers) - len(row)))
-                
-                # 답변 데이터 생성
-                answer_data = {}
+            # 누락된 필드 채우기
+            for row in data:
+                while len(row) < len(headers):
+                    row.append('')
+            
+            # 딕셔너리 리스트 생성
+            student_answers = []
+            for row in data:
+                answer = {}
                 for i, header in enumerate(headers):
-                    if i < len(row):
-                        # 점수는 숫자로 변환
-                        if header == '점수' and row[i]:
-                            try:
-                                answer_data[header] = float(row[i])
-                            except ValueError:
-                                answer_data[header] = 0
-                        else:
-                            answer_data[header] = row[i]
-                    else:
-                        answer_data[header] = ''
-                
-                answers.append(answer_data)
+                    answer[header] = row[i]
+                student_answers.append(answer)
             
-            logger.info(f"총 {len(answers)}개의 학생 답변을 성공적으로 가져왔습니다.")
-            return answers
-        except HttpError as error:
-            logger.error(f"학생 답변 가져오기 API 오류: {error}")
-            raise
+            logger.info(f"{len(student_answers)}개의 학생 답변을 가져왔습니다.")
+            return student_answers
         except Exception as e:
-            logger.error(f"학생 답변 가져오기 중 오류 발생: {str(e)}")
-            raise
+            logger.error(f"학생 답변 가져오기 오류: {str(e)}")
+            traceback.print_exc()
+            return []
     
-    def add_student_answer(self, answer_data):
-        """학생 답변 추가하기"""
+    def save_student_answer(self, answer_data, sheet_name='학생답변'):
+        """학생 답변 데이터를 저장합니다"""
+        logger.info("학생 답변 저장 시작")
+        if not self.is_connected():
+            logger.warning("Google Sheets API가 초기화되지 않았습니다.")
+            return False
+        
         try:
-            # 답변 데이터 추출 (키 순서가 중요)
-            headers = ['학생ID', '이름', '학년', '문제ID', '제출답안', '점수', '피드백', '제출시간']
+            # 필요한 필드 확인
+            required_fields = ['학생ID', '이름', '학년', '문제ID', '제출답안', '점수', '피드백', '제출시간']
             
-            values = []
-            for header in headers:
-                values.append(str(answer_data.get(header, '')))
+            # 시트 존재 여부 확인 및 생성
+            try:
+                sheets = self.service.spreadsheets().get(
+                    spreadsheetId=self.spreadsheet_id).execute().get('sheets', [])
+                sheet_exists = any(sheet['properties']['title'] == sheet_name for sheet in sheets)
+                
+                if not sheet_exists:
+                    # 시트 생성
+                    body = {
+                        'requests': [{
+                            'addSheet': {
+                                'properties': {
+                                    'title': sheet_name
+                                }
+                            }
+                        }]
+                    }
+                    self.service.spreadsheets().batchUpdate(
+                        spreadsheetId=self.spreadsheet_id,
+                        body=body
+                    ).execute()
+                    
+                    # 헤더 추가
+                    self.service.spreadsheets().values().update(
+                        spreadsheetId=self.spreadsheet_id,
+                        range=f'{sheet_name}!A1:H1',
+                        valueInputOption='RAW',
+                        body={'values': [required_fields]}
+                    ).execute()
+            except Exception as e:
+                logger.error(f"시트 확인/생성 오류: {str(e)}")
+                return False
             
-            # API 호출하여 student_answers 시트에 행 추가
-            body = {
-                'values': [values]
-            }
-            result = self.service.spreadsheets().values().append(
+            # 답변 데이터 준비
+            answer_row = []
+            for field in required_fields:
+                answer_row.append(answer_data.get(field, ''))
+            
+            # 데이터 추가
+            self.service.spreadsheets().values().append(
                 spreadsheetId=self.spreadsheet_id,
-                range='student_answers!A2:H',
+                range=f'{sheet_name}!A:H',
                 valueInputOption='RAW',
                 insertDataOption='INSERT_ROWS',
-                body=body
+                body={'values': [answer_row]}
             ).execute()
             
-            logger.info(f"학생 '{answer_data['이름']}'의 문제 '{answer_data['문제ID']}' 답변이 성공적으로 추가되었습니다.")
-            return result
-        except HttpError as error:
-            logger.error(f"학생 답변 추가 API 오류: {error}")
-            raise
+            logger.info(f"학생 답변이 저장되었습니다. 학생: {answer_data.get('이름')}, 문제: {answer_data.get('문제ID')}")
+            return True
         except Exception as e:
-            logger.error(f"학생 답변 추가 중 오류 발생: {str(e)}")
-            raise
+            logger.error(f"학생 답변 저장 오류: {str(e)}")
+            traceback.print_exc()
+            return False
 
     def clear_range(self, range_name):
         """시트의 특정 범위 데이터 지우기"""
