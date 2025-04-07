@@ -143,28 +143,29 @@ def load_data():
     # 구글 시트 API 연동 시도
     GOOGLE_SHEETS_AVAILABLE = False
     try:
-        # 필요한 환경 변수 확인
-        if not os.getenv('GOOGLE_SHEETS_SPREADSHEET_ID'):
-            st.warning("환경 변수 'GOOGLE_SHEETS_SPREADSHEET_ID'가 설정되지 않았습니다.")
-            st.info("로컬 CSV 파일로 대체합니다.")
-        elif not os.path.exists('credentials.json'):
-            st.warning("인증 파일 'credentials.json'이 존재하지 않습니다.")
-            st.info("로컬 CSV 파일로 대체합니다.")
-        else:
-            from sheets.google_sheets import GoogleSheetsAPI
-            # API 초기화 시도
-            try:
-                sheets_api = GoogleSheetsAPI()
-                if sheets_api.is_connected():
-                    GOOGLE_SHEETS_AVAILABLE = True
-                    st.session_state.sheets_api = sheets_api  # 세션에 API 객체 저장
-                    st.success("Google Sheets API가 성공적으로 연결되었습니다.")
-                else:
-                    st.warning("Google Sheets API 연결 실패: API 서비스가 초기화되지 않았습니다.")
-            except Exception as e:
-                st.warning(f"Google Sheets API 연결 실패: {str(e)}")
+        # sheets/google_sheets.py 모듈이 있는지 확인
+        from sheets.google_sheets import GoogleSheetsAPI
+        
+        # API 초기화 시도
+        try:
+            sheets_api = GoogleSheetsAPI()
+            if sheets_api.is_connected():
+                GOOGLE_SHEETS_AVAILABLE = True
+                st.session_state.sheets_api = sheets_api  # 세션에 API 객체 저장
+                st.success("구글 시트 연동이 성공적으로 연결되었습니다.")
+            else:
+                st.warning("구글 시트 연동 실패: API 서비스가 초기화되지 않았습니다.")
+                # 자세한 오류 로그 확인
+                if hasattr(sheets_api, 'service') and sheets_api.service is None:
+                    st.warning("구글 API 서비스가 초기화되지 않았습니다. 인증 정보를 확인하세요.")
+                if not sheets_api.spreadsheet_id:
+                    st.warning("스프레드시트 ID가 설정되지 않았습니다. 스트림릿 시크릿 또는 환경 변수를 확인하세요.")
+        except Exception as e:
+            st.warning(f"구글 시트 API 연결 실패: {str(e)}")
+            import traceback
+            st.warning(traceback.format_exc())
     except ImportError as e:
-        st.warning(f"Google API 패키지가 설치되지 않았습니다. 로컬 모드로 실행됩니다. 오류: {str(e)}")
+        st.warning(f"구글 API 패키지가 설치되지 않았습니다. 로컬 모드로 실행됩니다. 오류: {str(e)}")
     
     # 구글 시트에서 데이터 로드 시도
     if GOOGLE_SHEETS_AVAILABLE and 'sheets_api' in st.session_state:
@@ -193,19 +194,36 @@ def load_data():
             
             return True
         except Exception as e:
-            st.error(f"Google Sheets API 연결 오류: {str(e)}")
-            st.warning("로컬 CSV 파일로 대체합니다.")
+            st.error(f"구글 시트에서 데이터 로드 오류: {str(e)}")
+            st.warning("로컬 파일로 대체합니다.")
+    
+    # JSON 파일에서 로드 시도
+    try:
+        json_file = os.path.join("data", "problems.json")
+        if os.path.exists(json_file):
+            with open(json_file, 'r', encoding='utf-8') as f:
+                problems = json.load(f)
+                st.session_state.problems = problems
+                st.success(f"로컬 JSON 파일에서 {len(problems)}개의 문제를 가져왔습니다.")
+                return True
+    except Exception as e:
+        st.error(f"JSON 파일 로드 오류: {str(e)}")
+        st.warning("로컬 CSV 파일로 대체합니다.")
     
     # 로컬 CSV 파일 사용
     try:
         # 문제 데이터 로드
         problems_df = pd.read_csv(PROBLEMS_CSV)
         st.session_state.problems = problems_df.to_dict('records')
-        st.info(f"로컬 CSV 파일에서 {len(st.session_state.problems)}개의 문제를 로드했습니다.")
         
         # 학생 답변 데이터 로드
         student_answers_df = pd.read_csv(STUDENT_ANSWERS_CSV)
         st.session_state.student_answers = student_answers_df.to_dict('records')
+        
+        if problems_df.empty:
+            st.warning("문제 데이터가 비어 있습니다.")
+        else:
+            st.success(f"로컬 CSV 파일에서 {len(problems_df)}개의 문제를 가져왔습니다.")
         
         return True
     except Exception as e:

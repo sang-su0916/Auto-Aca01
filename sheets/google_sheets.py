@@ -53,16 +53,41 @@ class GoogleSheetsAPI:
     def _create_service(self):
         """Google Sheets API 서비스 객체 생성"""
         try:
-            # 인증 정보 파일 확인
-            if not os.path.exists(self.credentials_file):
-                logger.error(f"오류: {self.credentials_file} 파일을 찾을 수 없습니다.")
-                return None
+            # 우선 스트림릿 시크릿에서 인증 정보 확인
+            credentials = None
             
-            logger.info(f"인증 파일 경로: {self.credentials_file}")
+            try:
+                # 스트림릿 시크릿에서 서비스 계정 인증 정보 가져오기
+                import streamlit as st
+                if 'gcp_service_account' in st.secrets:
+                    # 시크릿에서 서비스 계정 정보 가져오기
+                    gcp_service_account = st.secrets["gcp_service_account"]
+                    logger.info("스트림릿 시크릿에서 인증 정보를 찾았습니다.")
+                    
+                    # 인증 정보 생성
+                    from google.oauth2 import service_account
+                    credentials = service_account.Credentials.from_service_account_info(
+                        gcp_service_account, scopes=self.scopes)
+                    
+                    # 스프레드시트 ID 확인 및 업데이트
+                    if 'spreadsheet_id' in st.secrets:
+                        self.spreadsheet_id = st.secrets["spreadsheet_id"]
+                        logger.info(f"스트림릿 시크릿에서 스프레드시트 ID를 업데이트했습니다: {self.spreadsheet_id}")
+            except Exception as e:
+                logger.warning(f"스트림릿 시크릿 접근 오류: {str(e)}")
             
-            # 인증 정보 생성
-            credentials = Credentials.from_service_account_file(
-                self.credentials_file, scopes=self.scopes)
+            # 스트림릿 시크릿에서 인증 정보를 가져오지 못한 경우 파일에서 확인
+            if credentials is None:
+                # 인증 정보 파일 확인
+                if not os.path.exists(self.credentials_file):
+                    logger.error(f"오류: {self.credentials_file} 파일을 찾을 수 없습니다.")
+                    return None
+                
+                logger.info(f"인증 파일 경로: {self.credentials_file}")
+                
+                # 인증 정보 생성
+                credentials = Credentials.from_service_account_file(
+                    self.credentials_file, scopes=self.scopes)
             
             # 서비스 객체 생성
             service = build('sheets', 'v4', credentials=credentials)
