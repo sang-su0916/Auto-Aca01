@@ -165,6 +165,7 @@ def load_data():
                 GOOGLE_SHEETS_AVAILABLE = True
                 st.session_state.sheets_api = sheets_api  # 세션에 API 객체 저장
                 st.success("구글 시트 연동이 성공적으로 연결되었습니다.")
+                st.info(f"사용 중인 스프레드시트 ID: {sheets_api.spreadsheet_id}")
             else:
                 st.warning("구글 시트 연동 실패: API 서비스가 초기화되지 않았습니다.")
                 # 자세한 오류 로그 확인
@@ -172,6 +173,16 @@ def load_data():
                     st.warning("구글 API 서비스가 초기화되지 않았습니다. 인증 정보를 확인하세요.")
                 if not sheets_api.spreadsheet_id:
                     st.warning("스프레드시트 ID가 설정되지 않았습니다. 스트림릿 시크릿 또는 환경 변수를 확인하세요.")
+                    
+                    # 스트림릿 시크릿의 내용 출력 (디버깅용)
+                    try:
+                        st.warning("스트림릿 시크릿 내용 확인 중...")
+                        if 'spreadsheet_id' in st.secrets:
+                            st.info(f"스트림릿 시크릿의 스프레드시트 ID: {st.secrets['spreadsheet_id']}")
+                        else:
+                            st.warning("스트림릿 시크릿에 'spreadsheet_id'가 없습니다.")
+                    except Exception as e:
+                        st.warning(f"스트림릿 시크릿 액세스 오류: {str(e)}")
         except Exception as e:
             st.warning(f"구글 시트 API 연결 실패: {str(e)}")
             import traceback
@@ -183,7 +194,7 @@ def load_data():
     if GOOGLE_SHEETS_AVAILABLE and 'sheets_api' in st.session_state:
         try:
             # 학생 답변 데이터 로드
-            student_answers = sheets_api.get_student_answers()
+            student_answers = st.session_state.sheets_api.get_student_answers()
             if student_answers:
                 st.session_state.student_answers = student_answers
                 st.success(f"구글 시트에서 {len(student_answers)}개의 학생 답변을 가져왔습니다.")
@@ -191,13 +202,17 @@ def load_data():
             # 사용자 역할과 학년에 따라 오늘의 문제 로드
             if st.session_state.role == 'student':
                 # 학생인 경우 해당 학년의 오늘 문제만 가져오기
-                daily_problems = sheets_api.get_daily_problems(grade=st.session_state.grade)
+                daily_problems = st.session_state.sheets_api.get_daily_problems(grade=st.session_state.grade, count=20)
                 if daily_problems:
                     st.session_state.problems = daily_problems
                     st.success(f"오늘의 {st.session_state.grade} 문제 {len(daily_problems)}개를 가져왔습니다.")
+                else:
+                    st.warning(f"{st.session_state.grade} 학년에 대한 문제를 가져오지 못했습니다. 샘플 문제를 사용합니다.")
+                    # 샘플 문제 로드 (로컬 파일에서)
+                    load_problems_from_local_files()
             else:
                 # 교사인 경우 모든 문제 가져오기
-                problems = sheets_api.get_problems()
+                problems = st.session_state.sheets_api.get_problems()
                 if problems:
                     st.session_state.problems = problems
                     st.success(f"구글 시트에서 {len(problems)}개의 문제를 가져왔습니다.")
@@ -513,6 +528,38 @@ def teacher_dashboard():
         else:
             st.info("통계를 생성할 데이터가 없습니다.")
 
+# 로컬 파일에서 문제 데이터 로드하는 함수
+def load_problems_from_local_files():
+    """로컬 파일(JSON 또는 CSV)에서 문제 데이터를 로드합니다."""
+    # JSON 파일에서 로드 시도
+    try:
+        json_file = os.path.join("data", "problems.json")
+        if os.path.exists(json_file):
+            with open(json_file, 'r', encoding='utf-8') as f:
+                problems = json.load(f)
+                st.session_state.problems = problems
+                st.success(f"로컬 JSON 파일에서 {len(problems)}개의 문제를 가져왔습니다.")
+                return True
+    except Exception as e:
+        st.error(f"JSON 파일 로드 오류: {str(e)}")
+        st.warning("로컬 CSV 파일로 대체합니다.")
+    
+    # 로컬 CSV 파일 사용
+    try:
+        # 문제 데이터 로드
+        problems_df = pd.read_csv(PROBLEMS_CSV)
+        st.session_state.problems = problems_df.to_dict('records')
+        
+        if problems_df.empty:
+            st.warning("문제 데이터가 비어 있습니다.")
+        else:
+            st.success(f"로컬 CSV 파일에서 {len(problems_df)}개의 문제를 가져왔습니다.")
+        
+        return True
+    except Exception as e:
+        st.error(f"로컬 CSV 파일 로드 오류: {str(e)}")
+        return False
+
 # 학생용 포털
 def student_portal():
     st.title("👨‍🎓 학생 포털")
@@ -524,25 +571,79 @@ def student_portal():
     st.header(f"📝 {today} 오늘의 문제")
     
     # 문제 데이터 확인 및 새로 가져오기
-    if not st.session_state.problems:
+    if not st.session_state.problems or len(st.session_state.problems) > 100:  # 너무 많은 문제가 로드된 경우에도 다시 로드
         if hasattr(st.session_state, 'sheets_api'):
             # 학생 학년에 맞는 오늘의 문제 20개 가져오기
-            daily_problems = st.session_state.sheets_api.get_daily_problems(grade=st.session_state.grade)
+            daily_problems = st.session_state.sheets_api.get_daily_problems(grade=st.session_state.grade, count=20)
             if daily_problems:
                 st.session_state.problems = daily_problems
+                st.session_state.current_problem_index = 0  # 인덱스 초기화
                 st.success(f"오늘의 {st.session_state.grade} 문제 {len(daily_problems)}개를 가져왔습니다.")
             else:
                 st.warning("오늘의 문제를 가져올 수 없습니다.")
-                return
+                # 로컬 데이터에서 학년에 맞는 문제만 필터링
+                try:
+                    json_file = os.path.join("data", "problems.json")
+                    if os.path.exists(json_file):
+                        with open(json_file, 'r', encoding='utf-8') as f:
+                            all_problems = json.load(f)
+                            filtered_problems = [p for p in all_problems if p.get('학년', '') == st.session_state.grade]
+                            if filtered_problems:
+                                if len(filtered_problems) > 20:
+                                    # 랜덤하게 20개만 선택
+                                    filtered_problems = random.sample(filtered_problems, 20)
+                                st.session_state.problems = filtered_problems
+                                st.session_state.current_problem_index = 0  # 인덱스 초기화
+                                st.success(f"로컬 JSON 파일에서 {st.session_state.grade} 학년 문제 {len(filtered_problems)}개를 가져왔습니다.")
+                except Exception as e:
+                    st.error(f"로컬 데이터 로드 오류: {str(e)}")
+                
+                # 구글 시트, JSON 파일에서 모두 실패한 경우
+                problems_df = pd.read_csv(PROBLEMS_CSV)
+                filtered_df = problems_df[problems_df['학년'] == st.session_state.grade]
+                if not filtered_df.empty:
+                    filtered_problems = filtered_df.to_dict('records')
+                    if len(filtered_problems) > 20:
+                        # 랜덤하게 20개만 선택
+                        filtered_problems = random.sample(filtered_problems, 20)
+                    st.session_state.problems = filtered_problems
+                    st.session_state.current_problem_index = 0  # 인덱스 초기화
+                    st.success(f"로컬 CSV 파일에서 {st.session_state.grade} 학년 문제 {len(filtered_problems)}개를 가져왔습니다.")
+                else:
+                    st.error(f"학년에 맞는 문제를 찾을 수 없습니다.")
+                    return
         else:
-            st.warning("등록된 문제가 없습니다.")
-            return
-    
-    # 문제 필터링 (학생 학년에 맞는 문제만)
-    if hasattr(st.session_state, 'sheets_api') and st.session_state.grade:
-        filtered_problems = [p for p in st.session_state.problems if p.get('학년', '') == st.session_state.grade]
-        if filtered_problems:
-            st.session_state.problems = filtered_problems
+            # 구글 시트 API가 없는 경우, 로컬 파일에서 학년에 맞는 문제만 필터링
+            try:
+                json_file = os.path.join("data", "problems.json")
+                if os.path.exists(json_file):
+                    with open(json_file, 'r', encoding='utf-8') as f:
+                        all_problems = json.load(f)
+                        filtered_problems = [p for p in all_problems if p.get('학년', '') == st.session_state.grade]
+                        if filtered_problems:
+                            if len(filtered_problems) > 20:
+                                # 랜덤하게 20개만 선택
+                                filtered_problems = random.sample(filtered_problems, 20)
+                            st.session_state.problems = filtered_problems
+                            st.session_state.current_problem_index = 0  # 인덱스 초기화
+                            st.success(f"로컬 JSON 파일에서 {st.session_state.grade} 학년 문제 {len(filtered_problems)}개를 가져왔습니다.")
+            except Exception as e:
+                st.error(f"로컬 JSON 파일 로드 오류: {str(e)}")
+            
+            # JSON 파일에서 실패한 경우 CSV 파일 시도
+            problems_df = pd.read_csv(PROBLEMS_CSV)
+            filtered_df = problems_df[problems_df['학년'] == st.session_state.grade]
+            if not filtered_df.empty:
+                filtered_problems = filtered_df.to_dict('records')
+                if len(filtered_problems) > 20:
+                    # 랜덤하게 20개만 선택
+                    filtered_problems = random.sample(filtered_problems, 20)
+                st.session_state.problems = filtered_problems
+                st.session_state.current_problem_index = 0  # 인덱스 초기화
+                st.success(f"로컬 CSV 파일에서 {st.session_state.grade} 학년 문제 {len(filtered_problems)}개를 가져왔습니다.")
+            else:
+                st.error(f"학년에 맞는 문제를 찾을 수 없습니다.")
+                return
     
     # 현재 문제 인덱스
     current_index = st.session_state.current_problem_index
@@ -601,26 +702,6 @@ def student_portal():
                 if option and option.strip():
                     options.append(option)
             
-            # 이전/다음 문제의 정답을 보기에 추가하여 겹치게 만들기
-            prev_answer = None
-            next_answer = None
-            
-            # 이전 문제의 정답 가져오기
-            if current_index > 0:
-                prev_problem = st.session_state.problems[current_index - 1]
-                if prev_problem['문제유형'] == '객관식':
-                    prev_answer = prev_problem.get('정답', '')
-                    if prev_answer and prev_answer not in options:
-                        options.append(prev_answer)
-            
-            # 다음 문제의 정답 가져오기
-            if current_index < total_problems - 1:
-                next_problem = st.session_state.problems[current_index + 1]
-                if next_problem['문제유형'] == '객관식':
-                    next_answer = next_problem.get('정답', '')
-                    if next_answer and next_answer not in options:
-                        options.append(next_answer)
-            
             # 옵션 섞기
             random.seed(problem['문제ID'])
             random.shuffle(options)
@@ -670,12 +751,14 @@ def student_portal():
     with col1:
         if current_index > 0:
             if st.button("← 이전 문제"):
-                prev_problem()
+                if st.session_state.current_problem_index > 0:
+                    st.session_state.current_problem_index -= 1
                 st.rerun()
     with col2:
         if current_index < total_problems - 1:
             if st.button("다음 문제 →"):
-                next_problem()
+                if st.session_state.current_problem_index < len(st.session_state.problems) - 1:
+                    st.session_state.current_problem_index += 1
                 st.rerun()
     
     # 마지막 문제에서만 제출 버튼 표시
